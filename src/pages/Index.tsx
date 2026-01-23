@@ -7,6 +7,7 @@ import { SegmentCard } from "@/components/crm/SegmentCard";
 import { CustomerTable } from "@/components/crm/CustomerTable";
 import { AddCustomerForm } from "@/components/crm/AddCustomerForm";
 import { AddPurchaseForm } from "@/components/crm/AddPurchaseForm";
+import { ImportCSVForm } from "@/components/crm/ImportCSVForm";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -19,6 +20,9 @@ const Index = () => {
     addCustomer,
     addPurchase,
     deleteCustomer,
+    importCustomers,
+    importPurchases,
+    getCustomerMobileLookup,
   } = useCRM();
 
   if (isLoading) {
@@ -73,6 +77,11 @@ const Index = () => {
         <section className="flex flex-wrap gap-3">
           <AddCustomerForm onSubmit={addCustomer} />
           <AddPurchaseForm customers={customers} onSubmit={addPurchase} />
+          <ImportCSVForm
+            onImportCustomers={importCustomers}
+            onImportPurchases={importPurchases}
+            customerLookup={getCustomerMobileLookup()}
+          />
         </section>
 
         {/* Tabs for Dashboard / All Customers */}
