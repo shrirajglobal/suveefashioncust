@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 const Index = () => {
   const {
     customers,
+    purchases,
     segmentStats,
     stats,
     isLoading,
@@ -23,6 +24,8 @@ const Index = () => {
     importCustomers,
     importPurchases,
     getCustomerMobileLookup,
+    getExistingCustomerMobiles,
+    getExistingPurchases,
   } = useCRM();
 
   if (isLoading) {
@@ -81,6 +84,8 @@ const Index = () => {
             onImportCustomers={importCustomers}
             onImportPurchases={importPurchases}
             customerLookup={getCustomerMobileLookup()}
+            existingCustomerMobiles={getExistingCustomerMobiles()}
+            existingPurchases={getExistingPurchases()}
           />
         </section>
 
