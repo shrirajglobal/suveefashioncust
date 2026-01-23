@@ -132,18 +132,55 @@ export function useCRM() {
     return newCustomer;
   };
 
-  // Bulk import customers
-  const importCustomers = (customersData: Array<Omit<Customer, "id" | "createdAt">>) => {
-    const newCustomers: Customer[] = customersData.map((data) => ({
-      ...data,
-      id: generateId(),
-      createdAt: new Date(),
-    }));
-    setCustomers((prev) => [...prev, ...newCustomers]);
-    return newCustomers;
+  // Bulk import customers with duplicate handling
+  const importCustomers = (
+    customersData: Array<Omit<Customer, "id" | "createdAt">>,
+    overwrite: boolean = false
+  ): { imported: number; skipped: number; updated: number } => {
+    const existingMobiles = new Set(customers.map(c => c.mobileNo));
+    let imported = 0;
+    let skipped = 0;
+    let updated = 0;
+
+    const newCustomers: Customer[] = [];
+    const updatedCustomers: Customer[] = [];
+
+    customersData.forEach((data) => {
+      if (existingMobiles.has(data.mobileNo)) {
+        if (overwrite) {
+          updatedCustomers.push({
+            ...data,
+            id: customers.find(c => c.mobileNo === data.mobileNo)!.id,
+            createdAt: customers.find(c => c.mobileNo === data.mobileNo)!.createdAt,
+          });
+          updated++;
+        } else {
+          skipped++;
+        }
+      } else {
+        newCustomers.push({
+          ...data,
+          id: generateId(),
+          createdAt: new Date(),
+        });
+        imported++;
+      }
+    });
+
+    setCustomers((prev) => {
+      let result = [...prev];
+      // Update existing customers
+      updatedCustomers.forEach((updated) => {
+        result = result.map(c => c.id === updated.id ? updated : c);
+      });
+      // Add new customers
+      return [...result, ...newCustomers];
+    });
+
+    return { imported, skipped, updated };
   };
 
-  // Bulk import purchases (using mobile lookup)
+  // Bulk import purchases with duplicate handling
   const importPurchases = (
     purchasesData: Array<{
       customerMobile: string;
@@ -151,24 +188,66 @@ export function useCRM() {
       date: Date;
       description?: string;
     }>,
-    mobileLookup: Map<string, string>
-  ) => {
-    const newPurchases = purchasesData
-      .map((data) => {
-        const customerId = mobileLookup.get(data.customerMobile);
-        if (!customerId) return null;
-        const purchase: Purchase = {
+    mobileLookup: Map<string, string>,
+    overwrite: boolean = false
+  ): { imported: number; skipped: number; updated: number } => {
+    // Create a map of existing purchase signatures
+    const existingPurchaseMap = new Map<string, string>(); // signature -> purchaseId
+    purchases.forEach(p => {
+      const signature = `${p.customerId}-${p.amount}-${new Date(p.date).toDateString()}`;
+      existingPurchaseMap.set(signature, p.id);
+    });
+
+    let imported = 0;
+    let skipped = 0;
+    let updated = 0;
+
+    const newPurchases: Purchase[] = [];
+    const updatedPurchases: Purchase[] = [];
+
+    purchasesData.forEach((data) => {
+      const customerId = mobileLookup.get(data.customerMobile);
+      if (!customerId) return;
+
+      const signature = `${customerId}-${data.amount}-${new Date(data.date).toDateString()}`;
+      const existingId = existingPurchaseMap.get(signature);
+
+      if (existingId) {
+        if (overwrite) {
+          updatedPurchases.push({
+            id: existingId,
+            customerId,
+            amount: data.amount,
+            date: data.date,
+            description: data.description,
+          });
+          updated++;
+        } else {
+          skipped++;
+        }
+      } else {
+        newPurchases.push({
           id: generateId(),
           customerId,
           amount: data.amount,
           date: data.date,
           description: data.description,
-        };
-        return purchase;
-      })
-      .filter((p): p is Purchase => p !== null);
-    setPurchases((prev) => [...prev, ...newPurchases]);
-    return newPurchases;
+        });
+        imported++;
+      }
+    });
+
+    setPurchases((prev) => {
+      let result = [...prev];
+      // Update existing purchases
+      updatedPurchases.forEach((updated) => {
+        result = result.map(p => p.id === updated.id ? updated : p);
+      });
+      // Add new purchases
+      return [...result, ...newPurchases];
+    });
+
+    return { imported, skipped, updated };
   };
 
   // Get customer mobile -> id lookup map
@@ -178,6 +257,20 @@ export function useCRM() {
       lookup.set(c.mobileNo, c.id);
     });
     return lookup;
+  };
+
+  // Get set of existing customer mobiles
+  const getExistingCustomerMobiles = (): Set<string> => {
+    return new Set(customers.map(c => c.mobileNo));
+  };
+
+  // Get existing purchases for duplicate checking
+  const getExistingPurchases = (): Array<{ customerId: string; amount: number; date: Date }> => {
+    return purchases.map(p => ({
+      customerId: p.customerId,
+      amount: p.amount,
+      date: new Date(p.date),
+    }));
   };
 
   // Update customer
@@ -244,5 +337,7 @@ export function useCRM() {
     importCustomers,
     importPurchases,
     getCustomerMobileLookup,
+    getExistingCustomerMobiles,
+    getExistingPurchases,
   };
 }

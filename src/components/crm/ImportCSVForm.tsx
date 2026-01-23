@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Upload, FileSpreadsheet, Download, AlertCircle, CheckCircle } from "lucide-react";
+import { Upload, FileSpreadsheet, Download, AlertCircle, CheckCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -20,14 +21,16 @@ interface ImportCSVFormProps {
     address: string;
     city: string;
     mobileNo: string;
-  }>) => void;
+  }>, overwrite?: boolean) => { imported: number; skipped: number; updated: number };
   onImportPurchases: (purchases: Array<{
     customerMobile: string;
     amount: number;
     date: Date;
     description?: string;
-  }>, customerLookup: Map<string, string>) => void;
-  customerLookup: Map<string, string>; // mobileNo -> customerId
+  }>, customerLookup: Map<string, string>, overwrite?: boolean) => { imported: number; skipped: number; updated: number };
+  customerLookup: Map<string, string>;
+  existingCustomerMobiles: Set<string>;
+  existingPurchases: Array<{ customerId: string; amount: number; date: Date }>;
 }
 
 interface CustomerRow {
@@ -49,10 +52,20 @@ interface PurchaseRow {
   description?: string;
 }
 
+interface DuplicateInfo {
+  type: "customers" | "purchases";
+  duplicateCount: number;
+  newCount: number;
+  data: CustomerRow[] | PurchaseRow[];
+  duplicates: string[];
+}
+
 export function ImportCSVForm({ 
   onImportCustomers, 
   onImportPurchases, 
-  customerLookup 
+  customerLookup,
+  existingCustomerMobiles,
+  existingPurchases,
 }: ImportCSVFormProps) {
   const [open, setOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -63,6 +76,7 @@ export function ImportCSVForm({
     errors?: string[];
     skippedCount?: number;
   } | null>(null);
+  const [duplicateDialog, setDuplicateDialog] = useState<DuplicateInfo | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const purchasesFileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -97,7 +111,6 @@ export function ImportCSVForm({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.name.endsWith(".csv")) {
       toast({
         title: "Invalid File",
@@ -116,9 +129,9 @@ export function ImportCSVForm({
       complete: (results) => {
         try {
           if (type === "customers") {
-            processCustomers(results.data as CustomerRow[]);
+            checkCustomerDuplicates(results.data as CustomerRow[]);
           } else {
-            processPurchases(results.data as PurchaseRow[]);
+            checkPurchaseDuplicates(results.data as PurchaseRow[]);
           }
         } catch (error) {
           setResult({
@@ -137,17 +150,104 @@ export function ImportCSVForm({
       },
     });
 
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (purchasesFileRef.current) purchasesFileRef.current.value = "";
+  };
+
+  const checkCustomerDuplicates = (rows: CustomerRow[]) => {
+    const duplicates: string[] = [];
+    const validRows: CustomerRow[] = [];
+
+    rows.forEach((row) => {
+      const mobileNo = (row.mobileNo || row.mobile || row.mobile_no)?.trim();
+      if (!mobileNo || !row.name?.trim()) return;
+      
+      if (existingCustomerMobiles.has(mobileNo)) {
+        duplicates.push(mobileNo);
+      }
+      validRows.push(row);
+    });
+
+    if (duplicates.length > 0) {
+      setDuplicateDialog({
+        type: "customers",
+        duplicateCount: duplicates.length,
+        newCount: validRows.length - duplicates.length,
+        data: validRows,
+        duplicates: duplicates.slice(0, 10),
+      });
+    } else {
+      processCustomers(validRows, false);
     }
   };
 
-  const processCustomers = (rows: CustomerRow[]) => {
+  const checkPurchaseDuplicates = (rows: PurchaseRow[]) => {
+    const duplicates: string[] = [];
+    const validRows: PurchaseRow[] = [];
+
+    // Create a set of existing purchase signatures for quick lookup
+    const existingSignatures = new Set(
+      existingPurchases.map(p => `${p.customerId}-${p.amount}-${new Date(p.date).toDateString()}`)
+    );
+
+    rows.forEach((row) => {
+      const customerMobile = (
+        row.customerMobile || row.customer_mobile || row.mobile || row.mobileNo
+      )?.toString().trim();
+      
+      if (!customerMobile || !row.amount || !row.date) return;
+      
+      const customerId = customerLookup.get(customerMobile);
+      if (!customerId) {
+        validRows.push(row);
+        return;
+      }
+
+      const amount = parseFloat(row.amount.toString());
+      const date = new Date(row.date);
+      if (isNaN(amount) || isNaN(date.getTime())) {
+        validRows.push(row);
+        return;
+      }
+
+      const signature = `${customerId}-${amount}-${date.toDateString()}`;
+      if (existingSignatures.has(signature)) {
+        duplicates.push(`${customerMobile} - ₹${amount} on ${date.toLocaleDateString()}`);
+      }
+      validRows.push(row);
+    });
+
+    if (duplicates.length > 0) {
+      setDuplicateDialog({
+        type: "purchases",
+        duplicateCount: duplicates.length,
+        newCount: validRows.length - duplicates.length,
+        data: validRows,
+        duplicates: duplicates.slice(0, 10),
+      });
+    } else {
+      processPurchases(validRows, false);
+    }
+  };
+
+  const handleDuplicateChoice = (overwrite: boolean) => {
+    if (!duplicateDialog) return;
+
+    if (duplicateDialog.type === "customers") {
+      processCustomers(duplicateDialog.data as CustomerRow[], overwrite);
+    } else {
+      processPurchases(duplicateDialog.data as PurchaseRow[], overwrite);
+    }
+    setDuplicateDialog(null);
+  };
+
+  const processCustomers = (rows: CustomerRow[], overwrite: boolean) => {
     if (rows.length === 0) {
       setResult({
         success: false,
         message: "No data found in the CSV file",
+        errors: [],
+        skippedCount: 0,
       });
       return;
     }
@@ -185,25 +285,35 @@ export function ImportCSVForm({
     if (validCustomers.length === 0) {
       setResult({
         success: false,
-        message: `No valid customers found. Errors:\n${errors.slice(0, 5).join("\n")}`,
+        message: `No valid customers found.`,
+        errors: errors.slice(0, 10),
+        skippedCount: rows.length,
       });
       return;
     }
 
-    onImportCustomers(validCustomers);
+    const importResult = onImportCustomers(validCustomers, overwrite);
+    
+    const messages: string[] = [];
+    if (importResult.imported > 0) messages.push(`${importResult.imported} new customers added`);
+    if (importResult.updated > 0) messages.push(`${importResult.updated} customers updated`);
+    if (importResult.skipped > 0) messages.push(`${importResult.skipped} duplicates skipped`);
+
     setResult({
       success: true,
-      message: `Successfully imported ${validCustomers.length} customers`,
-      count: validCustomers.length,
+      message: `✅ ${messages.join(", ")}`,
+      count: importResult.imported + importResult.updated,
+      errors: errors.length > 0 ? errors : undefined,
+      skippedCount: errors.length,
     });
 
     toast({
-      title: "Import Successful",
-      description: `${validCustomers.length} customers imported`,
+      title: "Import Completed",
+      description: messages.join(", "),
     });
   };
 
-  const processPurchases = (rows: PurchaseRow[]) => {
+  const processPurchases = (rows: PurchaseRow[], overwrite: boolean) => {
     if (rows.length === 0) {
       setResult({
         success: false,
@@ -222,10 +332,10 @@ export function ImportCSVForm({
     }> = [];
 
     const errorDetails: { row: number; mobile: string; reason: string }[] = [];
-    const notFoundMobiles: Map<string, number[]> = new Map(); // mobile -> row numbers
+    const notFoundMobiles: Map<string, number[]> = new Map();
 
     rows.forEach((row, index) => {
-      const rowNum = index + 2; // Account for header row
+      const rowNum = index + 2;
       const customerMobile = (
         row.customerMobile || 
         row.customer_mobile || 
@@ -261,7 +371,6 @@ export function ImportCSVForm({
         return;
       }
 
-      // Check if customer exists
       if (!customerLookup.has(customerMobile)) {
         const existing = notFoundMobiles.get(customerMobile) || [];
         existing.push(rowNum);
@@ -277,16 +386,14 @@ export function ImportCSVForm({
       });
     });
 
-    // Build comprehensive error messages
     const allErrors: string[] = [];
     
-    // Add customer not found errors (grouped by mobile)
     if (notFoundMobiles.size > 0) {
       const notFoundCount = Array.from(notFoundMobiles.values()).reduce((sum, rows) => sum + rows.length, 0);
-      allErrors.push(`⚠️ ${notFoundCount} purchases skipped - Customer mobile not found in database:`);
+      allErrors.push(`⚠️ ${notFoundCount} purchases skipped - Customer mobile not found:`);
       
       Array.from(notFoundMobiles.entries()).slice(0, 10).forEach(([mobile, rows]) => {
-        allErrors.push(`   • ${mobile} (${rows.length} transactions, rows: ${rows.slice(0, 3).join(", ")}${rows.length > 3 ? "..." : ""})`);
+        allErrors.push(`   • ${mobile} (${rows.length} transactions)`);
       });
       
       if (notFoundMobiles.size > 10) {
@@ -294,7 +401,6 @@ export function ImportCSVForm({
       }
     }
 
-    // Add other validation errors
     if (errorDetails.length > 0) {
       allErrors.push(`\n⚠️ ${errorDetails.length} rows skipped due to validation errors:`);
       errorDetails.slice(0, 10).forEach((err) => {
@@ -317,157 +423,222 @@ export function ImportCSVForm({
       return;
     }
 
-    onImportPurchases(validPurchases, customerLookup);
+    const importResult = onImportPurchases(validPurchases, customerLookup, overwrite);
     
-    const hasErrors = totalSkipped > 0;
+    const messages: string[] = [];
+    if (importResult.imported > 0) messages.push(`${importResult.imported} new purchases added`);
+    if (importResult.updated > 0) messages.push(`${importResult.updated} purchases updated`);
+    if (importResult.skipped > 0) messages.push(`${importResult.skipped} duplicates skipped`);
+
     setResult({
       success: true,
-      message: `✅ Successfully imported ${validPurchases.length} of ${rows.length} purchases.`,
-      count: validPurchases.length,
-      errors: hasErrors ? allErrors : undefined,
-      skippedCount: totalSkipped,
+      message: `✅ ${messages.join(", ")}`,
+      count: importResult.imported + importResult.updated,
+      errors: allErrors.length > 0 ? allErrors : undefined,
+      skippedCount: totalSkipped + importResult.skipped,
     });
 
     toast({
-      title: hasErrors ? "Import Completed with Warnings" : "Import Successful",
-      description: `${validPurchases.length} purchases imported${hasErrors ? `, ${totalSkipped} skipped` : ""}`,
-      variant: hasErrors ? "default" : "default",
+      title: "Import Completed",
+      description: messages.join(", "),
     });
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <Upload className="h-4 w-4" />
-          Import CSV
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5" />
-            Import from CSV
-          </DialogTitle>
-          <DialogDescription>
-            Upload a CSV file to bulk import customers or purchases
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline" className="gap-2">
+            <Upload className="h-4 w-4" />
+            Import CSV
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              Import from CSV
+            </DialogTitle>
+            <DialogDescription>
+              Upload a CSV file to bulk import customers or purchases
+            </DialogDescription>
+          </DialogHeader>
 
-        <Tabs defaultValue="customers" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="customers">Customers</TabsTrigger>
-            <TabsTrigger value="purchases">Purchases</TabsTrigger>
-          </TabsList>
+          <Tabs defaultValue="customers" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="customers">Customers</TabsTrigger>
+              <TabsTrigger value="purchases">Purchases</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="customers" className="space-y-4 pt-4">
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">
-                Upload a CSV file with columns: <code className="text-xs bg-muted px-1 py-0.5 rounded">name</code>,{" "}
-                <code className="text-xs bg-muted px-1 py-0.5 rounded">mobileNo</code>,{" "}
-                <code className="text-xs bg-muted px-1 py-0.5 rounded">address</code>,{" "}
-                <code className="text-xs bg-muted px-1 py-0.5 rounded">city</code>
-              </p>
-              <Button
-                variant="link"
-                size="sm"
-                className="h-auto p-0 text-primary"
-                onClick={() => downloadTemplate("customers")}
-              >
-                <Download className="h-3 w-3 mr-1" />
-                Download template
-              </Button>
-            </div>
+            <TabsContent value="customers" className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Upload a CSV file with columns: <code className="text-xs bg-muted px-1 py-0.5 rounded">name</code>,{" "}
+                  <code className="text-xs bg-muted px-1 py-0.5 rounded">mobileNo</code>,{" "}
+                  <code className="text-xs bg-muted px-1 py-0.5 rounded">address</code>,{" "}
+                  <code className="text-xs bg-muted px-1 py-0.5 rounded">city</code>
+                </p>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-primary"
+                  onClick={() => downloadTemplate("customers")}
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  Download template
+                </Button>
+              </div>
 
-            <div className="flex flex-col gap-3">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv"
-                className="hidden"
-                onChange={(e) => handleFileUpload(e, "customers")}
-              />
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={importing}
-                className="w-full"
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                {importing ? "Importing..." : "Select CSV File"}
-              </Button>
-            </div>
-          </TabsContent>
+              <div className="flex flex-col gap-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={(e) => handleFileUpload(e, "customers")}
+                />
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={importing}
+                  className="w-full"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  {importing ? "Importing..." : "Select CSV File"}
+                </Button>
+              </div>
+            </TabsContent>
 
-          <TabsContent value="purchases" className="space-y-4 pt-4">
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">
-                Upload a CSV file with columns: <code className="text-xs bg-muted px-1 py-0.5 rounded">customerMobile</code>,{" "}
-                <code className="text-xs bg-muted px-1 py-0.5 rounded">amount</code>,{" "}
-                <code className="text-xs bg-muted px-1 py-0.5 rounded">date</code>,{" "}
-                <code className="text-xs bg-muted px-1 py-0.5 rounded">description</code>
-              </p>
-              <Button
-                variant="link"
-                size="sm"
-                className="h-auto p-0 text-primary"
-                onClick={() => downloadTemplate("purchases")}
-              >
-                <Download className="h-3 w-3 mr-1" />
-                Download template
-              </Button>
-            </div>
+            <TabsContent value="purchases" className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Upload a CSV file with columns: <code className="text-xs bg-muted px-1 py-0.5 rounded">customerMobile</code>,{" "}
+                  <code className="text-xs bg-muted px-1 py-0.5 rounded">amount</code>,{" "}
+                  <code className="text-xs bg-muted px-1 py-0.5 rounded">date</code>,{" "}
+                  <code className="text-xs bg-muted px-1 py-0.5 rounded">description</code>
+                </p>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-primary"
+                  onClick={() => downloadTemplate("purchases")}
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  Download template
+                </Button>
+              </div>
 
-            <div className="flex flex-col gap-3">
-              <input
-                ref={purchasesFileRef}
-                type="file"
-                accept=".csv"
-                className="hidden"
-                onChange={(e) => handleFileUpload(e, "purchases")}
-              />
-              <Button
-                onClick={() => purchasesFileRef.current?.click()}
-                disabled={importing}
-                className="w-full"
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                {importing ? "Importing..." : "Select CSV File"}
-              </Button>
-            </div>
-          </TabsContent>
-        </Tabs>
+              <div className="flex flex-col gap-3">
+                <input
+                  ref={purchasesFileRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={(e) => handleFileUpload(e, "purchases")}
+                />
+                <Button
+                  onClick={() => purchasesFileRef.current?.click()}
+                  disabled={importing}
+                  className="w-full"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  {importing ? "Importing..." : "Select CSV File"}
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
 
-        {result && (
-          <div className="space-y-3">
-            <Alert variant={result.success ? "default" : "destructive"}>
-              {result.success ? (
-                <CheckCircle className="h-4 w-4" />
-              ) : (
-                <AlertCircle className="h-4 w-4" />
+          {result && (
+            <div className="space-y-3">
+              <Alert variant={result.success ? "default" : "destructive"}>
+                {result.success ? (
+                  <CheckCircle className="h-4 w-4" />
+                ) : (
+                  <AlertCircle className="h-4 w-4" />
+                )}
+                <AlertDescription>
+                  <div className="font-medium">{result.message}</div>
+                  {result.skippedCount !== undefined && result.skippedCount > 0 && (
+                    <div className="text-sm mt-1">
+                      {result.skippedCount} row(s) were skipped
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
+              
+              {result.errors && result.errors.length > 0 && (
+                <div className="max-h-48 overflow-y-auto rounded-md bg-muted p-3 text-sm">
+                  <div className="font-medium mb-2 text-destructive">Error Details:</div>
+                  {result.errors.map((error, i) => (
+                    <div key={i} className="text-muted-foreground whitespace-pre-wrap">
+                      {error}
+                    </div>
+                  ))}
+                </div>
               )}
-              <AlertDescription>
-                <div className="font-medium">{result.message}</div>
-                {result.skippedCount !== undefined && result.skippedCount > 0 && (
-                  <div className="text-sm mt-1">
-                    {result.skippedCount} row(s) were skipped
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Duplicate Confirmation Dialog */}
+      <Dialog open={!!duplicateDialog} onOpenChange={() => setDuplicateDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="h-5 w-5" />
+              Duplicate Data Found
+            </DialogTitle>
+            <DialogDescription>
+              {duplicateDialog?.type === "customers" ? (
+                <>
+                  Found <strong>{duplicateDialog.duplicateCount}</strong> customer(s) with mobile numbers that already exist in your database.
+                </>
+              ) : (
+                <>
+                  Found <strong>{duplicateDialog?.duplicateCount}</strong> purchase(s) that appear to be duplicates (same customer, amount, and date).
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="text-sm">
+              <div className="font-medium mb-2">Duplicate entries:</div>
+              <div className="max-h-32 overflow-y-auto rounded-md bg-muted p-2 text-xs">
+                {duplicateDialog?.duplicates.map((dup, i) => (
+                  <div key={i} className="py-0.5">• {dup}</div>
+                ))}
+                {duplicateDialog && duplicateDialog.duplicates.length < duplicateDialog.duplicateCount && (
+                  <div className="py-0.5 text-muted-foreground">
+                    ... and {duplicateDialog.duplicateCount - duplicateDialog.duplicates.length} more
                   </div>
                 )}
-              </AlertDescription>
-            </Alert>
-            
-            {result.errors && result.errors.length > 0 && (
-              <div className="max-h-48 overflow-y-auto rounded-md bg-muted p-3 text-sm">
-                <div className="font-medium mb-2 text-destructive">Error Details:</div>
-                {result.errors.map((error, i) => (
-                  <div key={i} className="text-muted-foreground whitespace-pre-wrap">
-                    {error}
-                  </div>
-                ))}
               </div>
-            )}
+            </div>
+
+            <div className="text-sm text-muted-foreground">
+              New entries to add: <strong>{duplicateDialog?.newCount}</strong>
+            </div>
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => handleDuplicateChoice(false)}
+              className="w-full sm:w-auto"
+            >
+              Skip Duplicates
+            </Button>
+            <Button
+              variant="default"
+              onClick={() => handleDuplicateChoice(true)}
+              className="w-full sm:w-auto"
+            >
+              Overwrite Existing
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
