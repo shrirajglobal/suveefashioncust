@@ -132,6 +132,54 @@ export function useCRM() {
     return newCustomer;
   };
 
+  // Bulk import customers
+  const importCustomers = (customersData: Array<Omit<Customer, "id" | "createdAt">>) => {
+    const newCustomers: Customer[] = customersData.map((data) => ({
+      ...data,
+      id: generateId(),
+      createdAt: new Date(),
+    }));
+    setCustomers((prev) => [...prev, ...newCustomers]);
+    return newCustomers;
+  };
+
+  // Bulk import purchases (using mobile lookup)
+  const importPurchases = (
+    purchasesData: Array<{
+      customerMobile: string;
+      amount: number;
+      date: Date;
+      description?: string;
+    }>,
+    mobileLookup: Map<string, string>
+  ) => {
+    const newPurchases = purchasesData
+      .map((data) => {
+        const customerId = mobileLookup.get(data.customerMobile);
+        if (!customerId) return null;
+        const purchase: Purchase = {
+          id: generateId(),
+          customerId,
+          amount: data.amount,
+          date: data.date,
+          description: data.description,
+        };
+        return purchase;
+      })
+      .filter((p): p is Purchase => p !== null);
+    setPurchases((prev) => [...prev, ...newPurchases]);
+    return newPurchases;
+  };
+
+  // Get customer mobile -> id lookup map
+  const getCustomerMobileLookup = (): Map<string, string> => {
+    const lookup = new Map<string, string>();
+    customers.forEach((c) => {
+      lookup.set(c.mobileNo, c.id);
+    });
+    return lookup;
+  };
+
   // Update customer
   const updateCustomer = (id: string, data: Partial<Customer>) => {
     setCustomers((prev) =>
@@ -193,5 +241,8 @@ export function useCRM() {
     addPurchase,
     deletePurchase,
     getCustomer,
+    importCustomers,
+    importPurchases,
+    getCustomerMobileLookup,
   };
 }
