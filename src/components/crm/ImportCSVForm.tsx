@@ -60,8 +60,11 @@ export function ImportCSVForm({
     success: boolean;
     message: string;
     count?: number;
+    errors?: string[];
+    skippedCount?: number;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const purchasesFileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const downloadTemplate = (type: "customers" | "purchases") => {
@@ -205,6 +208,8 @@ export function ImportCSVForm({
       setResult({
         success: false,
         message: "No data found in the CSV file",
+        errors: [],
+        skippedCount: 0,
       });
       return;
     }
@@ -216,10 +221,11 @@ export function ImportCSVForm({
       description?: string;
     }> = [];
 
-    const errors: string[] = [];
-    const notFoundMobiles: Set<string> = new Set();
+    const errorDetails: { row: number; mobile: string; reason: string }[] = [];
+    const notFoundMobiles: Map<string, number[]> = new Map(); // mobile -> row numbers
 
     rows.forEach((row, index) => {
+      const rowNum = index + 2; // Account for header row
       const customerMobile = (
         row.customerMobile || 
         row.customer_mobile || 
@@ -231,33 +237,35 @@ export function ImportCSVForm({
       const dateStr = row.date?.trim();
 
       if (!customerMobile) {
-        errors.push(`Row ${index + 2}: Missing customer mobile`);
+        errorDetails.push({ row: rowNum, mobile: "-", reason: "Missing customer mobile" });
         return;
       }
       if (!amountStr) {
-        errors.push(`Row ${index + 2}: Missing amount`);
+        errorDetails.push({ row: rowNum, mobile: customerMobile, reason: "Missing amount" });
         return;
       }
       if (!dateStr) {
-        errors.push(`Row ${index + 2}: Missing date`);
+        errorDetails.push({ row: rowNum, mobile: customerMobile, reason: "Missing date" });
         return;
       }
 
       const amount = parseFloat(amountStr);
       if (isNaN(amount) || amount <= 0) {
-        errors.push(`Row ${index + 2}: Invalid amount`);
+        errorDetails.push({ row: rowNum, mobile: customerMobile, reason: `Invalid amount: "${amountStr}"` });
         return;
       }
 
       const date = new Date(dateStr);
       if (isNaN(date.getTime())) {
-        errors.push(`Row ${index + 2}: Invalid date format`);
+        errorDetails.push({ row: rowNum, mobile: customerMobile, reason: `Invalid date format: "${dateStr}"` });
         return;
       }
 
       // Check if customer exists
       if (!customerLookup.has(customerMobile)) {
-        notFoundMobiles.add(customerMobile);
+        const existing = notFoundMobiles.get(customerMobile) || [];
+        existing.push(rowNum);
+        notFoundMobiles.set(customerMobile, existing);
         return;
       }
 
@@ -269,35 +277,61 @@ export function ImportCSVForm({
       });
     });
 
+    // Build comprehensive error messages
+    const allErrors: string[] = [];
+    
+    // Add customer not found errors (grouped by mobile)
     if (notFoundMobiles.size > 0) {
-      const mobiles = Array.from(notFoundMobiles).slice(0, 3);
-      errors.push(
-        `Customers not found for mobiles: ${mobiles.join(", ")}${
-          notFoundMobiles.size > 3 ? ` and ${notFoundMobiles.size - 3} more` : ""
-        }`
-      );
+      const notFoundCount = Array.from(notFoundMobiles.values()).reduce((sum, rows) => sum + rows.length, 0);
+      allErrors.push(`⚠️ ${notFoundCount} purchases skipped - Customer mobile not found in database:`);
+      
+      Array.from(notFoundMobiles.entries()).slice(0, 10).forEach(([mobile, rows]) => {
+        allErrors.push(`   • ${mobile} (${rows.length} transactions, rows: ${rows.slice(0, 3).join(", ")}${rows.length > 3 ? "..." : ""})`);
+      });
+      
+      if (notFoundMobiles.size > 10) {
+        allErrors.push(`   ... and ${notFoundMobiles.size - 10} more mobile numbers`);
+      }
     }
+
+    // Add other validation errors
+    if (errorDetails.length > 0) {
+      allErrors.push(`\n⚠️ ${errorDetails.length} rows skipped due to validation errors:`);
+      errorDetails.slice(0, 10).forEach((err) => {
+        allErrors.push(`   • Row ${err.row}: ${err.reason}`);
+      });
+      if (errorDetails.length > 10) {
+        allErrors.push(`   ... and ${errorDetails.length - 10} more errors`);
+      }
+    }
+
+    const totalSkipped = errorDetails.length + Array.from(notFoundMobiles.values()).reduce((sum, rows) => sum + rows.length, 0);
 
     if (validPurchases.length === 0) {
       setResult({
         success: false,
-        message: `No valid purchases found.\n${errors.slice(0, 5).join("\n")}`,
+        message: `No valid purchases imported out of ${rows.length} rows.`,
+        errors: allErrors,
+        skippedCount: totalSkipped,
       });
       return;
     }
 
     onImportPurchases(validPurchases, customerLookup);
+    
+    const hasErrors = totalSkipped > 0;
     setResult({
       success: true,
-      message: `Successfully imported ${validPurchases.length} purchases${
-        errors.length > 0 ? `. ${errors.length} rows skipped.` : ""
-      }`,
+      message: `✅ Successfully imported ${validPurchases.length} of ${rows.length} purchases.`,
       count: validPurchases.length,
+      errors: hasErrors ? allErrors : undefined,
+      skippedCount: totalSkipped,
     });
 
     toast({
-      title: "Import Successful",
-      description: `${validPurchases.length} purchases imported`,
+      title: hasErrors ? "Import Completed with Warnings" : "Import Successful",
+      description: `${validPurchases.length} purchases imported${hasErrors ? `, ${totalSkipped} skipped` : ""}`,
+      variant: hasErrors ? "default" : "default",
     });
   };
 
@@ -385,14 +419,14 @@ export function ImportCSVForm({
 
             <div className="flex flex-col gap-3">
               <input
+                ref={purchasesFileRef}
                 type="file"
                 accept=".csv"
                 className="hidden"
-                id="purchases-file"
                 onChange={(e) => handleFileUpload(e, "purchases")}
               />
               <Button
-                onClick={() => document.getElementById("purchases-file")?.click()}
+                onClick={() => purchasesFileRef.current?.click()}
                 disabled={importing}
                 className="w-full"
               >
@@ -404,16 +438,34 @@ export function ImportCSVForm({
         </Tabs>
 
         {result && (
-          <Alert variant={result.success ? "default" : "destructive"}>
-            {result.success ? (
-              <CheckCircle className="h-4 w-4" />
-            ) : (
-              <AlertCircle className="h-4 w-4" />
+          <div className="space-y-3">
+            <Alert variant={result.success ? "default" : "destructive"}>
+              {result.success ? (
+                <CheckCircle className="h-4 w-4" />
+              ) : (
+                <AlertCircle className="h-4 w-4" />
+              )}
+              <AlertDescription>
+                <div className="font-medium">{result.message}</div>
+                {result.skippedCount !== undefined && result.skippedCount > 0 && (
+                  <div className="text-sm mt-1">
+                    {result.skippedCount} row(s) were skipped
+                  </div>
+                )}
+              </AlertDescription>
+            </Alert>
+            
+            {result.errors && result.errors.length > 0 && (
+              <div className="max-h-48 overflow-y-auto rounded-md bg-muted p-3 text-sm">
+                <div className="font-medium mb-2 text-destructive">Error Details:</div>
+                {result.errors.map((error, i) => (
+                  <div key={i} className="text-muted-foreground whitespace-pre-wrap">
+                    {error}
+                  </div>
+                ))}
+              </div>
             )}
-            <AlertDescription className="whitespace-pre-line">
-              {result.message}
-            </AlertDescription>
-          </Alert>
+          </div>
         )}
       </DialogContent>
     </Dialog>
