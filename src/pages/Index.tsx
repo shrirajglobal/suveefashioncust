@@ -17,6 +17,7 @@ const Index = () => {
     segmentStats,
     stats,
     isLoading,
+    salesTeamMembers,
     addCustomer,
     addPurchase,
     deleteCustomer,
@@ -25,6 +26,7 @@ const Index = () => {
     getCustomerMobileLookup,
     getExistingCustomerMobiles,
     getExistingPurchases,
+    assignCustomer,
   } = useSupabaseCRM();
 
   if (isLoading) {
@@ -120,7 +122,12 @@ const Index = () => {
                   View and manage all your customers
                 </p>
               </div>
-              <CustomerTable customers={customers} onDelete={deleteCustomer} />
+              <CustomerTable 
+                customers={customers} 
+                onDelete={deleteCustomer} 
+                salesTeamMembers={salesTeamMembers}
+                onAssignCustomer={assignCustomer}
+              />
             </section>
           </TabsContent>
         </Tabs>
