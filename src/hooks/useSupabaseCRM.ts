@@ -1,0 +1,362 @@
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Customer, Purchase, CustomerWithPurchases, SEGMENTS, SegmentPeriod } from "@/types/crm";
+import { getDaysBetween } from "@/lib/formatters";
+import { toast } from "sonner";
+
+interface DBCustomer {
+  id: string;
+  name: string;
+  address: string | null;
+  city: string | null;
+  mobile_no: string;
+  created_at: string;
+  assigned_to: string | null;
+  created_by: string | null;
+}
+
+interface DBTransaction {
+  id: string;
+  customer_id: string;
+  amount: number;
+  transaction_date: string;
+  description: string | null;
+  created_at: string;
+  created_by: string | null;
+}
+
+function mapDBCustomer(db: DBCustomer): Customer {
+  return {
+    id: db.id,
+    name: db.name,
+    address: db.address ?? "",
+    city: db.city ?? "",
+    mobileNo: db.mobile_no,
+    createdAt: new Date(db.created_at),
+  };
+}
+
+function mapDBPurchase(db: DBTransaction): Purchase {
+  return {
+    id: db.id,
+    customerId: db.customer_id,
+    amount: Number(db.amount),
+    date: new Date(db.transaction_date),
+    description: db.description ?? undefined,
+  };
+}
+
+export function useSupabaseCRM() {
+  const { user, isAdminOrAccounts } = useAuth();
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchData = useCallback(async () => {
+    if (!user) return;
+    
+    setIsLoading(true);
+    try {
+      const [customersRes, transactionsRes] = await Promise.all([
+        supabase.from("customers").select("*"),
+        supabase.from("transactions").select("*"),
+      ]);
+
+      if (customersRes.error) throw customersRes.error;
+      if (transactionsRes.error) throw transactionsRes.error;
+
+      setCustomers((customersRes.data || []).map(mapDBCustomer));
+      setPurchases((transactionsRes.data || []).map(mapDBPurchase));
+    } catch (error: any) {
+      toast.error("Failed to fetch data: " + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Compute customers with purchase data
+  const customersWithPurchases = useMemo((): CustomerWithPurchases[] => {
+    const today = new Date();
+    
+    return customers.map((customer) => {
+      const customerPurchases = purchases.filter((p) => p.customerId === customer.id);
+      const totalPurchaseAmount = customerPurchases.reduce((sum, p) => sum + p.amount, 0);
+      
+      const sortedPurchases = [...customerPurchases].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      
+      const lastPurchaseDate = sortedPurchases.length > 0 
+        ? new Date(sortedPurchases[0].date) 
+        : null;
+      
+      const daysSinceLastPurchase = lastPurchaseDate 
+        ? getDaysBetween(today, lastPurchaseDate)
+        : null;
+
+      return {
+        ...customer,
+        purchases: customerPurchases,
+        totalPurchaseAmount,
+        lastPurchaseDate,
+        daysSinceLastPurchase,
+      };
+    });
+  }, [customers, purchases]);
+
+  // Segment customers by last purchase date
+  const segmentedCustomers = useMemo(() => {
+    const segments: Record<SegmentPeriod, CustomerWithPurchases[]> = {
+      "7d": [], "15d": [], "30d": [], "3m": [], "6m": [], "12m": [], "over": [],
+    };
+
+    customersWithPurchases.forEach((customer) => {
+      if (customer.daysSinceLastPurchase === null) {
+        segments.over.push(customer);
+        return;
+      }
+
+      const days = customer.daysSinceLastPurchase;
+      const segment = SEGMENTS.find((s) => days >= s.minDays && days <= s.maxDays);
+      
+      if (segment) {
+        segments[segment.id].push(customer);
+      }
+    });
+
+    return segments;
+  }, [customersWithPurchases]);
+
+  // Segment statistics
+  const segmentStats = useMemo(() => {
+    return SEGMENTS.map((segment) => {
+      const segmentCustomers = segmentedCustomers[segment.id];
+      const totalAmount = segmentCustomers.reduce((sum, c) => sum + c.totalPurchaseAmount, 0);
+      
+      return {
+        ...segment,
+        count: segmentCustomers.length,
+        totalAmount,
+        customers: segmentCustomers,
+      };
+    });
+  }, [segmentedCustomers]);
+
+  // Add customer
+  const addCustomer = async (data: Omit<Customer, "id" | "createdAt">) => {
+    if (!user) return null;
+    
+    const { data: newCustomer, error } = await supabase
+      .from("customers")
+      .insert({
+        name: data.name,
+        address: data.address || null,
+        city: data.city || null,
+        mobile_no: data.mobileNo,
+        assigned_to: user.id,
+        created_by: user.id,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      toast.error("Failed to add customer: " + error.message);
+      return null;
+    }
+
+    const mapped = mapDBCustomer(newCustomer);
+    setCustomers((prev) => [...prev, mapped]);
+    toast.success("Customer added successfully!");
+    return mapped;
+  };
+
+  // Update customer
+  const updateCustomer = async (id: string, data: Partial<Customer>) => {
+    const updateData: Record<string, any> = {};
+    if (data.name) updateData.name = data.name;
+    if (data.address !== undefined) updateData.address = data.address || null;
+    if (data.city !== undefined) updateData.city = data.city || null;
+    if (data.mobileNo) updateData.mobile_no = data.mobileNo;
+
+    const { error } = await supabase
+      .from("customers")
+      .update(updateData)
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Failed to update customer: " + error.message);
+      return;
+    }
+
+    setCustomers((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...data } : c))
+    );
+    toast.success("Customer updated!");
+  };
+
+  // Delete customer
+  const deleteCustomer = async (id: string) => {
+    const { error } = await supabase.from("customers").delete().eq("id", id);
+
+    if (error) {
+      toast.error("Failed to delete customer: " + error.message);
+      return;
+    }
+
+    setCustomers((prev) => prev.filter((c) => c.id !== id));
+    setPurchases((prev) => prev.filter((p) => p.customerId !== id));
+    toast.success("Customer deleted!");
+  };
+
+  // Add purchase
+  const addPurchase = async (data: Omit<Purchase, "id">) => {
+    if (!user) return null;
+
+    const { data: newPurchase, error } = await supabase
+      .from("transactions")
+      .insert({
+        customer_id: data.customerId,
+        amount: data.amount,
+        transaction_date: new Date(data.date).toISOString().split("T")[0],
+        description: data.description || null,
+        created_by: user.id,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      toast.error("Failed to add purchase: " + error.message);
+      return null;
+    }
+
+    const mapped = mapDBPurchase(newPurchase);
+    setPurchases((prev) => [...prev, mapped]);
+    toast.success("Purchase added successfully!");
+    return mapped;
+  };
+
+  // Delete purchase
+  const deletePurchase = async (id: string) => {
+    const { error } = await supabase.from("transactions").delete().eq("id", id);
+
+    if (error) {
+      toast.error("Failed to delete purchase: " + error.message);
+      return;
+    }
+
+    setPurchases((prev) => prev.filter((p) => p.id !== id));
+    toast.success("Purchase deleted!");
+  };
+
+  // Get customer by ID
+  const getCustomer = (id: string): CustomerWithPurchases | undefined => {
+    return customersWithPurchases.find((c) => c.id === id);
+  };
+
+  // Summary stats
+  const stats = useMemo(() => {
+    const totalCustomers = customers.length;
+    const totalPurchases = purchases.length;
+    const totalRevenue = purchases.reduce((sum, p) => sum + p.amount, 0);
+    const avgPurchaseValue = totalPurchases > 0 ? totalRevenue / totalPurchases : 0;
+
+    return { totalCustomers, totalPurchases, totalRevenue, avgPurchaseValue };
+  }, [customers, purchases]);
+
+  // Bulk import (simplified for Supabase)
+  const importCustomers = async (
+    customersData: Array<Omit<Customer, "id" | "createdAt">>,
+    overwrite: boolean = false
+  ): Promise<{ imported: number; skipped: number; updated: number }> => {
+    if (!user) return { imported: 0, skipped: 0, updated: 0 };
+
+    const existingMobiles = new Set(customers.map(c => c.mobileNo));
+    let imported = 0, skipped = 0, updated = 0;
+
+    for (const data of customersData) {
+      if (existingMobiles.has(data.mobileNo)) {
+        if (overwrite) {
+          const existing = customers.find(c => c.mobileNo === data.mobileNo);
+          if (existing) {
+            await updateCustomer(existing.id, data);
+            updated++;
+          }
+        } else {
+          skipped++;
+        }
+      } else {
+        await addCustomer(data);
+        imported++;
+      }
+    }
+
+    await fetchData();
+    return { imported, skipped, updated };
+  };
+
+  const importPurchases = async (
+    purchasesData: Array<{ customerMobile: string; amount: number; date: Date; description?: string }>,
+    mobileLookup: Map<string, string>,
+    overwrite: boolean = false
+  ): Promise<{ imported: number; skipped: number; updated: number }> => {
+    if (!user) return { imported: 0, skipped: 0, updated: 0 };
+
+    let imported = 0, skipped = 0;
+
+    for (const data of purchasesData) {
+      const customerId = mobileLookup.get(data.customerMobile);
+      if (!customerId) continue;
+
+      await addPurchase({
+        customerId,
+        amount: data.amount,
+        date: data.date,
+        description: data.description,
+      });
+      imported++;
+    }
+
+    await fetchData();
+    return { imported, skipped, updated: 0 };
+  };
+
+  const getCustomerMobileLookup = (): Map<string, string> => {
+    const lookup = new Map<string, string>();
+    customers.forEach((c) => lookup.set(c.mobileNo, c.id));
+    return lookup;
+  };
+
+  const getExistingCustomerMobiles = (): Set<string> => {
+    return new Set(customers.map(c => c.mobileNo));
+  };
+
+  const getExistingPurchases = (): Array<{ customerId: string; amount: number; date: Date }> => {
+    return purchases.map(p => ({ customerId: p.customerId, amount: p.amount, date: new Date(p.date) }));
+  };
+
+  return {
+    customers: customersWithPurchases,
+    purchases,
+    segmentedCustomers,
+    segmentStats,
+    stats,
+    isLoading,
+    addCustomer,
+    updateCustomer,
+    deleteCustomer,
+    addPurchase,
+    deletePurchase,
+    getCustomer,
+    importCustomers,
+    importPurchases,
+    getCustomerMobileLookup,
+    getExistingCustomerMobiles,
+    getExistingPurchases,
+    refetch: fetchData,
+  };
+}

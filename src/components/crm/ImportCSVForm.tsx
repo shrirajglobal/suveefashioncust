@@ -21,13 +21,13 @@ interface ImportCSVFormProps {
     address: string;
     city: string;
     mobileNo: string;
-  }>, overwrite?: boolean) => { imported: number; skipped: number; updated: number };
+  }>, overwrite?: boolean) => Promise<{ imported: number; skipped: number; updated: number }> | { imported: number; skipped: number; updated: number };
   onImportPurchases: (purchases: Array<{
     customerMobile: string;
     amount: number;
     date: Date;
     description?: string;
-  }>, customerLookup: Map<string, string>, overwrite?: boolean) => { imported: number; skipped: number; updated: number };
+  }>, customerLookup: Map<string, string>, overwrite?: boolean) => Promise<{ imported: number; skipped: number; updated: number }> | { imported: number; skipped: number; updated: number };
   customerLookup: Map<string, string>;
   existingCustomerMobiles: Set<string>;
   existingPurchases: Array<{ customerId: string; amount: number; date: Date }>;
@@ -241,7 +241,7 @@ export function ImportCSVForm({
     setDuplicateDialog(null);
   };
 
-  const processCustomers = (rows: CustomerRow[], overwrite: boolean) => {
+  const processCustomers = async (rows: CustomerRow[], overwrite: boolean) => {
     if (rows.length === 0) {
       setResult({
         success: false,
@@ -292,7 +292,7 @@ export function ImportCSVForm({
       return;
     }
 
-    const importResult = onImportCustomers(validCustomers, overwrite);
+    const importResult = await onImportCustomers(validCustomers, overwrite);
     
     const messages: string[] = [];
     if (importResult.imported > 0) messages.push(`${importResult.imported} new customers added`);
@@ -313,7 +313,7 @@ export function ImportCSVForm({
     });
   };
 
-  const processPurchases = (rows: PurchaseRow[], overwrite: boolean) => {
+  const processPurchases = async (rows: PurchaseRow[], overwrite: boolean) => {
     if (rows.length === 0) {
       setResult({
         success: false,
@@ -423,7 +423,7 @@ export function ImportCSVForm({
       return;
     }
 
-    const importResult = onImportPurchases(validPurchases, customerLookup, overwrite);
+    const importResult = await onImportPurchases(validPurchases, customerLookup, overwrite);
     
     const messages: string[] = [];
     if (importResult.imported > 0) messages.push(`${importResult.imported} new purchases added`);

@@ -1,5 +1,5 @@
 import { Users, ShoppingBag, IndianRupee, TrendingUp } from "lucide-react";
-import { useCRM } from "@/hooks/useCRM";
+import { useSupabaseCRM } from "@/hooks/useSupabaseCRM";
 import { formatINR } from "@/lib/formatters";
 import { Header } from "@/components/crm/Header";
 import { StatCard } from "@/components/crm/StatCard";
@@ -14,7 +14,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 const Index = () => {
   const {
     customers,
-    purchases,
     segmentStats,
     stats,
     isLoading,
@@ -26,7 +25,7 @@ const Index = () => {
     getCustomerMobileLookup,
     getExistingCustomerMobiles,
     getExistingPurchases,
-  } = useCRM();
+  } = useSupabaseCRM();
 
   if (isLoading) {
     return (
