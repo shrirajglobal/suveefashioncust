@@ -272,57 +272,118 @@ export function useSupabaseCRM() {
   const importCustomers = async (
     customersData: Array<Omit<Customer, "id" | "createdAt">>,
     overwrite: boolean = false
-  ): Promise<{ imported: number; skipped: number; updated: number }> => {
-    if (!user) return { imported: 0, skipped: 0, updated: 0 };
+  ): Promise<{ imported: number; skipped: number; updated: number; errors: string[] }> => {
+    if (!user) return { imported: 0, skipped: 0, updated: 0, errors: [] };
 
     const existingMobiles = new Set(customers.map(c => c.mobileNo));
     let imported = 0, skipped = 0, updated = 0;
+    const errors: string[] = [];
 
     for (const data of customersData) {
       if (existingMobiles.has(data.mobileNo)) {
         if (overwrite) {
           const existing = customers.find(c => c.mobileNo === data.mobileNo);
           if (existing) {
-            await updateCustomer(existing.id, data);
-            updated++;
+            const { error } = await supabase
+              .from("customers")
+              .update({
+                name: data.name,
+                address: data.address || null,
+                city: data.city || null,
+              })
+              .eq("id", existing.id);
+
+            if (error) {
+              errors.push(`Failed to update ${data.mobileNo}: ${error.message}`);
+            } else {
+              updated++;
+            }
           }
         } else {
           skipped++;
         }
       } else {
-        await addCustomer(data);
-        imported++;
+        const result = await addCustomer(data);
+        if (result) {
+          imported++;
+          existingMobiles.add(data.mobileNo); // Prevent duplicate inserts within batch
+        } else {
+          errors.push(`Failed to add customer: ${data.mobileNo}`);
+        }
       }
     }
 
     await fetchData();
-    return { imported, skipped, updated };
+    return { imported, skipped, updated, errors };
   };
 
   const importPurchases = async (
     purchasesData: Array<{ customerMobile: string; amount: number; date: Date; description?: string }>,
     mobileLookup: Map<string, string>,
     overwrite: boolean = false
-  ): Promise<{ imported: number; skipped: number; updated: number }> => {
-    if (!user) return { imported: 0, skipped: 0, updated: 0 };
+  ): Promise<{ imported: number; skipped: number; updated: number; errors: string[] }> => {
+    if (!user) return { imported: 0, skipped: 0, updated: 0, errors: [] };
 
-    let imported = 0, skipped = 0;
+    let imported = 0, skipped = 0, updated = 0;
+    const errors: string[] = [];
+
+    // Create a lookup for existing purchases by signature
+    const existingSignatures = new Map<string, string>();
+    purchases.forEach(p => {
+      const sig = `${p.customerId}-${p.amount}-${new Date(p.date).toDateString()}`;
+      existingSignatures.set(sig, p.id);
+    });
 
     for (const data of purchasesData) {
       const customerId = mobileLookup.get(data.customerMobile);
-      if (!customerId) continue;
+      if (!customerId) {
+        errors.push(`Customer not found: ${data.customerMobile}`);
+        continue;
+      }
 
-      await addPurchase({
-        customerId,
-        amount: data.amount,
-        date: data.date,
-        description: data.description,
-      });
-      imported++;
+      const dateStr = new Date(data.date).toDateString();
+      const signature = `${customerId}-${data.amount}-${dateStr}`;
+      const existingId = existingSignatures.get(signature);
+
+      if (existingId) {
+        if (overwrite) {
+          // Update existing purchase
+          const { error } = await supabase
+            .from("transactions")
+            .update({
+              description: data.description || null,
+              transaction_date: new Date(data.date).toISOString().split("T")[0],
+            })
+            .eq("id", existingId);
+
+          if (error) {
+            errors.push(`Failed to update purchase for ${data.customerMobile}: ${error.message}`);
+          } else {
+            updated++;
+          }
+        } else {
+          skipped++;
+        }
+      } else {
+        const result = await addPurchase({
+          customerId,
+          amount: data.amount,
+          date: data.date,
+          description: data.description,
+        });
+        
+        if (result) {
+          imported++;
+          // Add to existing signatures to prevent duplicate inserts within the same batch
+          existingSignatures.set(signature, result.id);
+        } else {
+          errors.push(`Failed to add purchase for ${data.customerMobile}`);
+        }
+      }
     }
 
     await fetchData();
-    return { imported, skipped, updated: 0 };
+    return { imported, skipped, updated, errors };
   };
 
   const getCustomerMobileLookup = (): Map<string, string> => {
