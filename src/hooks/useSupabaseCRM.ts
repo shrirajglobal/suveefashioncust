@@ -421,7 +421,7 @@ export function useSupabaseCRM() {
     return purchases.map(p => ({ customerId: p.customerId, amount: p.amount, date: new Date(p.date) }));
   };
 
-  // Assign customer to a sales team member (Super Admin only - enforced by DB trigger)
+  // Assign customer to a sales team member (Super Admin or Accounts - enforced by DB trigger)
   const assignCustomer = async (customerId: string, salesUserId: string | null) => {
     const { error } = await supabase
       .from("customers")
@@ -434,6 +434,23 @@ export function useSupabaseCRM() {
     }
 
     toast.success("Customer assigned successfully!");
+    await fetchData();
+    return true;
+  };
+
+  // Bulk assign customers to a sales team member
+  const bulkAssignCustomers = async (customerIds: string[], salesUserId: string | null) => {
+    const { error } = await supabase
+      .from("customers")
+      .update({ assigned_to: salesUserId })
+      .in("id", customerIds);
+
+    if (error) {
+      toast.error("Failed to assign customers: " + error.message);
+      return false;
+    }
+
+    toast.success(`${customerIds.length} customer${customerIds.length !== 1 ? "s" : ""} assigned successfully!`);
     await fetchData();
     return true;
   };
@@ -458,6 +475,7 @@ export function useSupabaseCRM() {
     getExistingCustomerMobiles,
     getExistingPurchases,
     assignCustomer,
+    bulkAssignCustomers,
     refetch: fetchData,
   };
 }
