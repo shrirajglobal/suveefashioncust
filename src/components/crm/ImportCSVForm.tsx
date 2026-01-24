@@ -21,13 +21,13 @@ interface ImportCSVFormProps {
     address: string;
     city: string;
     mobileNo: string;
-  }>, overwrite?: boolean) => Promise<{ imported: number; skipped: number; updated: number }> | { imported: number; skipped: number; updated: number };
+  }>, overwrite?: boolean) => Promise<{ imported: number; skipped: number; updated: number; errors: string[] }>;
   onImportPurchases: (purchases: Array<{
     customerMobile: string;
     amount: number;
     date: Date;
     description?: string;
-  }>, customerLookup: Map<string, string>, overwrite?: boolean) => Promise<{ imported: number; skipped: number; updated: number }> | { imported: number; skipped: number; updated: number };
+  }>, customerLookup: Map<string, string>, overwrite?: boolean) => Promise<{ imported: number; skipped: number; updated: number; errors: string[] }>;
   customerLookup: Map<string, string>;
   existingCustomerMobiles: Set<string>;
   existingPurchases: Array<{ customerId: string; amount: number; date: Date }>;
@@ -299,17 +299,27 @@ export function ImportCSVForm({
     if (importResult.updated > 0) messages.push(`${importResult.updated} customers updated`);
     if (importResult.skipped > 0) messages.push(`${importResult.skipped} duplicates skipped`);
 
+    // Combine validation errors with import errors
+    const allErrors = [...errors];
+    if (importResult.errors && importResult.errors.length > 0) {
+      allErrors.push("", "⚠️ Import Errors:");
+      allErrors.push(...importResult.errors.map(e => `   • ${e}`));
+    }
+
+    const hasIssues = allErrors.length > 0;
+    
     setResult({
-      success: true,
-      message: `✅ ${messages.join(", ")}`,
+      success: importResult.imported > 0 || importResult.updated > 0,
+      message: messages.length > 0 ? `✅ ${messages.join(", ")}` : "No data was imported",
       count: importResult.imported + importResult.updated,
-      errors: errors.length > 0 ? errors : undefined,
-      skippedCount: errors.length,
+      errors: hasIssues ? allErrors : undefined,
+      skippedCount: errors.length + importResult.skipped,
     });
 
     toast({
       title: "Import Completed",
-      description: messages.join(", "),
+      description: messages.length > 0 ? messages.join(", ") : "No data was imported",
+      variant: messages.length > 0 ? "default" : "destructive",
     });
   };
 
@@ -430,17 +440,27 @@ export function ImportCSVForm({
     if (importResult.updated > 0) messages.push(`${importResult.updated} purchases updated`);
     if (importResult.skipped > 0) messages.push(`${importResult.skipped} duplicates skipped`);
 
+    // Combine all errors
+    if (importResult.errors && importResult.errors.length > 0) {
+      allErrors.push("", "⚠️ Import Errors:");
+      allErrors.push(...importResult.errors.map(e => `   • ${e}`));
+    }
+
+    const hasIssues = allErrors.length > 0;
+    const totalSkippedWithDuplicates = totalSkipped + importResult.skipped;
+
     setResult({
-      success: true,
-      message: `✅ ${messages.join(", ")}`,
+      success: importResult.imported > 0 || importResult.updated > 0,
+      message: messages.length > 0 ? `✅ ${messages.join(", ")}` : "No data was imported",
       count: importResult.imported + importResult.updated,
-      errors: allErrors.length > 0 ? allErrors : undefined,
-      skippedCount: totalSkipped + importResult.skipped,
+      errors: hasIssues ? allErrors : undefined,
+      skippedCount: totalSkippedWithDuplicates,
     });
 
     toast({
       title: "Import Completed",
-      description: messages.join(", "),
+      description: messages.length > 0 ? messages.join(", ") : "No data was imported",
+      variant: messages.length > 0 ? "default" : "destructive",
     });
   };
 
@@ -584,7 +604,7 @@ export function ImportCSVForm({
       <Dialog open={!!duplicateDialog} onOpenChange={() => setDuplicateDialog(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-amber-600">
+            <DialogTitle className="flex items-center gap-2 text-warning">
               <AlertTriangle className="h-5 w-5" />
               Duplicate Data Found
             </DialogTitle>
