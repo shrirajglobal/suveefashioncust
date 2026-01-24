@@ -21,6 +21,7 @@ interface ImportCSVFormProps {
     address: string;
     city: string;
     mobileNo: string;
+    assignedTo?: string | null;
   }>, overwrite?: boolean) => Promise<{ imported: number; skipped: number; updated: number; errors: string[] }>;
   onImportPurchases: (purchases: Array<{
     customerMobile: string;
@@ -31,6 +32,8 @@ interface ImportCSVFormProps {
   customerLookup: Map<string, string>;
   existingCustomerMobiles: Set<string>;
   existingPurchases: Array<{ customerId: string; amount: number; date: Date }>;
+  salesTeamMembers?: Array<{ id: string; name: string }>;
+  canAssignCustomers?: boolean;
 }
 
 interface CustomerRow {
@@ -40,6 +43,10 @@ interface CustomerRow {
   mobileNo: string;
   mobile?: string;
   mobile_no?: string;
+  assignedTo?: string;
+  assigned_to?: string;
+  salesPerson?: string;
+  sales_person?: string;
 }
 
 interface PurchaseRow {
@@ -66,6 +73,8 @@ export function ImportCSVForm({
   customerLookup,
   existingCustomerMobiles,
   existingPurchases,
+  salesTeamMembers = [],
+  canAssignCustomers = false,
 }: ImportCSVFormProps) {
   const [open, setOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -86,7 +95,11 @@ export function ImportCSVForm({
     let filename = "";
 
     if (type === "customers") {
-      content = "name,mobileNo,address,city\nJohn Doe,+91 98765 43210,123 Main St,Mumbai\nJane Smith,+91 87654 32109,456 Oak Ave,Delhi";
+      const salesNames = salesTeamMembers.map(m => m.name).slice(0, 2);
+      const exampleSales = salesNames.length > 0 ? salesNames[0] : "Sales Person Name";
+      content = canAssignCustomers 
+        ? `name,mobileNo,address,city,salesPerson\nJohn Doe,+91 98765 43210,123 Main St,Mumbai,${exampleSales}\nJane Smith,+91 87654 32109,456 Oak Ave,Delhi,${salesNames[1] || exampleSales}`
+        : "name,mobileNo,address,city\nJohn Doe,+91 98765 43210,123 Main St,Mumbai\nJane Smith,+91 87654 32109,456 Oak Ave,Delhi";
       filename = "customers_template.csv";
     } else {
       content = "customerMobile,amount,date,description\n+91 98765 43210,5000,2024-01-15,Product A\n+91 87654 32109,3500,2024-01-16,Service B";
@@ -241,6 +254,12 @@ export function ImportCSVForm({
     setDuplicateDialog(null);
   };
 
+  // Create a lookup map for sales team names to IDs
+  const salesNameToId = new Map<string, string>();
+  salesTeamMembers.forEach((member) => {
+    salesNameToId.set(member.name.toLowerCase().trim(), member.id);
+  });
+
   const processCustomers = async (rows: CustomerRow[], overwrite: boolean) => {
     if (rows.length === 0) {
       setResult({
@@ -257,6 +276,7 @@ export function ImportCSVForm({
       address: string;
       city: string;
       mobileNo: string;
+      assignedTo?: string | null;
     }> = [];
 
     const errors: string[] = [];
@@ -264,6 +284,7 @@ export function ImportCSVForm({
     rows.forEach((row, index) => {
       const name = row.name?.trim();
       const mobileNo = (row.mobileNo || row.mobile || row.mobile_no)?.trim();
+      const salesPersonName = (row.salesPerson || row.sales_person || row.assignedTo || row.assigned_to)?.trim();
 
       if (!name) {
         errors.push(`Row ${index + 2}: Missing name`);
@@ -274,11 +295,23 @@ export function ImportCSVForm({
         return;
       }
 
+      // Resolve sales person name to ID
+      let assignedTo: string | null = null;
+      if (salesPersonName && canAssignCustomers) {
+        const salesId = salesNameToId.get(salesPersonName.toLowerCase());
+        if (salesId) {
+          assignedTo = salesId;
+        } else {
+          errors.push(`Row ${index + 2}: Sales person "${salesPersonName}" not found`);
+        }
+      }
+
       validCustomers.push({
         name,
         address: row.address?.trim() || "",
         city: row.city?.trim() || "",
         mobileNo,
+        assignedTo,
       });
     });
 
@@ -497,6 +530,9 @@ export function ImportCSVForm({
                   <code className="text-xs bg-muted px-1 py-0.5 rounded">mobileNo</code>,{" "}
                   <code className="text-xs bg-muted px-1 py-0.5 rounded">address</code>,{" "}
                   <code className="text-xs bg-muted px-1 py-0.5 rounded">city</code>
+                  {canAssignCustomers && (
+                    <>, <code className="text-xs bg-muted px-1 py-0.5 rounded">salesPerson</code> (optional)</>
+                  )}
                 </p>
                 <Button
                   variant="link"

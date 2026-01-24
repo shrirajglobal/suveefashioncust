@@ -54,7 +54,7 @@ export function CustomerTable({
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
 
-  const isSuperAdmin = userRole === "super_admin";
+  const canAssignCustomers = userRole === "super_admin" || userRole === "accounts";
 
   const filteredCustomers = customers.filter(
     (customer) =>
@@ -225,7 +225,7 @@ export function CustomerTable({
                     </div>
                   </TableCell>
                   <TableCell>
-                    {isSuperAdmin && onAssignCustomer ? (
+                    {canAssignCustomers && onAssignCustomer ? (
                       <Select
                         value={customer.assignedTo || "unassigned"}
                         onValueChange={(value) => handleAssign(customer.id, value)}

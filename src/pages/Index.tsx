@@ -1,5 +1,6 @@
 import { Users, ShoppingBag, IndianRupee, TrendingUp } from "lucide-react";
 import { useSupabaseCRM } from "@/hooks/useSupabaseCRM";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatINR } from "@/lib/formatters";
 import { Header } from "@/components/crm/Header";
 import { StatCard } from "@/components/crm/StatCard";
@@ -12,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Index = () => {
+  const { isAdminOrAccounts } = useAuth();
   const {
     customers,
     segmentStats,
@@ -87,6 +89,8 @@ const Index = () => {
             customerLookup={getCustomerMobileLookup()}
             existingCustomerMobiles={getExistingCustomerMobiles()}
             existingPurchases={getExistingPurchases()}
+            salesTeamMembers={salesTeamMembers}
+            canAssignCustomers={isAdminOrAccounts}
           />
         </section>
 
