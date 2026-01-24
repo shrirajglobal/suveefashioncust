@@ -168,7 +168,7 @@ export function useSupabaseCRM() {
   }, [segmentedCustomers]);
 
   // Add customer
-  const addCustomer = async (data: Omit<Customer, "id" | "createdAt">) => {
+  const addCustomer = async (data: Omit<Customer, "id" | "createdAt"> & { assignedTo?: string | null }) => {
     if (!user) return null;
     
     const { data: newCustomer, error } = await supabase
@@ -178,7 +178,7 @@ export function useSupabaseCRM() {
         address: data.address || null,
         city: data.city || null,
         mobile_no: data.mobileNo,
-        assigned_to: user.id,
+        assigned_to: data.assignedTo !== undefined ? data.assignedTo : user.id,
         created_by: user.id,
       })
       .select()
@@ -290,7 +290,7 @@ export function useSupabaseCRM() {
 
   // Bulk import (simplified for Supabase)
   const importCustomers = async (
-    customersData: Array<Omit<Customer, "id" | "createdAt">>,
+    customersData: Array<Omit<Customer, "id" | "createdAt"> & { assignedTo?: string | null }>,
     overwrite: boolean = false
   ): Promise<{ imported: number; skipped: number; updated: number; errors: string[] }> => {
     if (!user) return { imported: 0, skipped: 0, updated: 0, errors: [] };
@@ -310,6 +310,7 @@ export function useSupabaseCRM() {
                 name: data.name,
                 address: data.address || null,
                 city: data.city || null,
+                assigned_to: data.assignedTo !== undefined ? data.assignedTo : existing.assignedTo,
               })
               .eq("id", existing.id);
 
