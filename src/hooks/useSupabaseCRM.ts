@@ -26,7 +26,7 @@ interface DBTransaction {
   created_by: string | null;
 }
 
-function mapDBCustomer(db: DBCustomer): Customer {
+function mapDBCustomer(db: DBCustomer, profilesMap?: Map<string, string>): Customer {
   return {
     id: db.id,
     name: db.name,
@@ -34,6 +34,8 @@ function mapDBCustomer(db: DBCustomer): Customer {
     city: db.city ?? "",
     mobileNo: db.mobile_no,
     createdAt: new Date(db.created_at),
+    assignedTo: db.assigned_to,
+    assignedToName: db.assigned_to && profilesMap ? profilesMap.get(db.assigned_to) : null,
   };
 }
 
@@ -51,6 +53,7 @@ export function useSupabaseCRM() {
   const { user, isAdminOrAccounts } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [salesTeamMembers, setSalesTeamMembers] = useState<Array<{ id: string; name: string }>>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
@@ -58,15 +61,32 @@ export function useSupabaseCRM() {
     
     setIsLoading(true);
     try {
-      const [customersRes, transactionsRes] = await Promise.all([
+      const [customersRes, transactionsRes, profilesRes, rolesRes] = await Promise.all([
         supabase.from("customers").select("*"),
         supabase.from("transactions").select("*"),
+        supabase.from("profiles").select("user_id, full_name"),
+        supabase.from("user_roles").select("user_id, role"),
       ]);
 
       if (customersRes.error) throw customersRes.error;
       if (transactionsRes.error) throw transactionsRes.error;
 
-      setCustomers((customersRes.data || []).map(mapDBCustomer));
+      // Create a map of user_id to full_name
+      const profilesMap = new Map<string, string>();
+      (profilesRes.data || []).forEach((p) => {
+        profilesMap.set(p.user_id, p.full_name);
+      });
+
+      // Get sales team members (all users with sales_team role)
+      const salesTeam = (rolesRes.data || [])
+        .filter((r) => r.role === "sales_team")
+        .map((r) => ({
+          id: r.user_id,
+          name: profilesMap.get(r.user_id) || "Unknown",
+        }));
+      setSalesTeamMembers(salesTeam);
+
+      setCustomers((customersRes.data || []).map((c) => mapDBCustomer(c, profilesMap)));
       setPurchases((transactionsRes.data || []).map(mapDBPurchase));
     } catch (error: any) {
       toast.error("Failed to fetch data: " + error.message);
@@ -400,6 +420,23 @@ export function useSupabaseCRM() {
     return purchases.map(p => ({ customerId: p.customerId, amount: p.amount, date: new Date(p.date) }));
   };
 
+  // Assign customer to a sales team member (Super Admin only - enforced by DB trigger)
+  const assignCustomer = async (customerId: string, salesUserId: string | null) => {
+    const { error } = await supabase
+      .from("customers")
+      .update({ assigned_to: salesUserId })
+      .eq("id", customerId);
+
+    if (error) {
+      toast.error("Failed to assign customer: " + error.message);
+      return false;
+    }
+
+    toast.success("Customer assigned successfully!");
+    await fetchData();
+    return true;
+  };
+
   return {
     customers: customersWithPurchases,
     purchases,
@@ -407,6 +444,7 @@ export function useSupabaseCRM() {
     segmentStats,
     stats,
     isLoading,
+    salesTeamMembers,
     addCustomer,
     updateCustomer,
     deleteCustomer,
@@ -418,6 +456,7 @@ export function useSupabaseCRM() {
     getCustomerMobileLookup,
     getExistingCustomerMobiles,
     getExistingPurchases,
+    assignCustomer,
     refetch: fetchData,
   };
 }

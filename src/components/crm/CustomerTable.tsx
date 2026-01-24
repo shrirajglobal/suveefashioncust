@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc } from "lucide-react";
+import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc, UserCheck } from "lucide-react";
 import { CustomerWithPurchases } from "@/types/crm";
 import { formatINR, formatDaysAgo, formatDate } from "@/lib/formatters";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -23,26 +24,44 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 
 interface CustomerTableProps {
   customers: CustomerWithPurchases[];
   onDelete: (id: string) => void;
+  salesTeamMembers?: Array<{ id: string; name: string }>;
+  onAssignCustomer?: (customerId: string, salesUserId: string | null) => Promise<boolean>;
 }
 
-type SortField = "name" | "city" | "totalPurchaseAmount" | "daysSinceLastPurchase";
+type SortField = "name" | "city" | "totalPurchaseAmount" | "daysSinceLastPurchase" | "assignedTo";
 type SortOrder = "asc" | "desc";
 
-export function CustomerTable({ customers, onDelete }: CustomerTableProps) {
+export function CustomerTable({ 
+  customers, 
+  onDelete,
+  salesTeamMembers = [],
+  onAssignCustomer,
+}: CustomerTableProps) {
+  const { userRole } = useAuth();
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
+
+  const isSuperAdmin = userRole === "super_admin";
 
   const filteredCustomers = customers.filter(
     (customer) =>
       customer.name.toLowerCase().includes(search.toLowerCase()) ||
       customer.city.toLowerCase().includes(search.toLowerCase()) ||
-      customer.mobileNo.includes(search)
+      customer.mobileNo.includes(search) ||
+      (customer.assignedToName?.toLowerCase().includes(search.toLowerCase()) ?? false)
   );
 
   const sortedCustomers = [...filteredCustomers].sort((a, b) => {
@@ -62,6 +81,9 @@ export function CustomerTable({ customers, onDelete }: CustomerTableProps) {
         const aDays = a.daysSinceLastPurchase ?? Infinity;
         const bDays = b.daysSinceLastPurchase ?? Infinity;
         comparison = aDays - bDays;
+        break;
+      case "assignedTo":
+        comparison = (a.assignedToName ?? "").localeCompare(b.assignedToName ?? "");
         break;
     }
 
@@ -94,12 +116,18 @@ export function CustomerTable({ customers, onDelete }: CustomerTableProps) {
     return <Badge variant="destructive">At Risk</Badge>;
   };
 
+  const handleAssign = async (customerId: string, value: string) => {
+    if (!onAssignCustomer) return;
+    const salesUserId = value === "unassigned" ? null : value;
+    await onAssignCustomer(customerId, salesUserId);
+  };
+
   return (
     <div className="space-y-4">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Search by name, city, or mobile..."
+          placeholder="Search by name, city, mobile, or assigned to..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-10"
@@ -130,6 +158,16 @@ export function CustomerTable({ customers, onDelete }: CustomerTableProps) {
                 </div>
               </TableHead>
               <TableHead
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort("assignedTo")}
+              >
+                <div className="flex items-center gap-2">
+                  <UserCheck className="h-4 w-4" />
+                  Assigned To
+                  <SortIcon field="assignedTo" />
+                </div>
+              </TableHead>
+              <TableHead
                 className="cursor-pointer hover:bg-muted/50 text-right"
                 onClick={() => handleSort("totalPurchaseAmount")}
               >
@@ -154,7 +192,7 @@ export function CustomerTable({ customers, onDelete }: CustomerTableProps) {
           <TableBody>
             {sortedCustomers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={8} className="text-center py-8">
                   <p className="text-muted-foreground">
                     {search ? "No customers found" : "No customers yet. Add your first customer!"}
                   </p>
@@ -172,16 +210,45 @@ export function CustomerTable({ customers, onDelete }: CustomerTableProps) {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1 text-sm">
+                    <a 
+                      href={`tel:${customer.mobileNo}`}
+                      className="flex items-center gap-1 text-sm hover:text-primary transition-colors"
+                    >
                       <Phone className="h-3 w-3 text-muted-foreground" />
                       {customer.mobileNo}
-                    </div>
+                    </a>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 text-sm">
                       <MapPin className="h-3 w-3 text-muted-foreground" />
                       {customer.city || "-"}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {isSuperAdmin && onAssignCustomer ? (
+                      <Select
+                        value={customer.assignedTo || "unassigned"}
+                        onValueChange={(value) => handleAssign(customer.id, value)}
+                      >
+                        <SelectTrigger className="w-36 h-8 text-xs">
+                          <SelectValue placeholder="Assign to..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassigned">
+                            <span className="text-muted-foreground">Unassigned</span>
+                          </SelectItem>
+                          {salesTeamMembers.map((member) => (
+                            <SelectItem key={member.id} value={member.id}>
+                              {member.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant="outline" className="text-xs">
+                        {customer.assignedToName || "Unassigned"}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-right font-medium">
                     {formatINR(customer.totalPurchaseAmount)}

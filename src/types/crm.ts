@@ -5,6 +5,8 @@ export interface Customer {
   city: string;
   mobileNo: string;
   createdAt: Date;
+  assignedTo?: string | null;
+  assignedToName?: string | null;
 }
 
 export interface Purchase {
