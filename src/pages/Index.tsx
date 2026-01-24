@@ -29,6 +29,7 @@ const Index = () => {
     getExistingCustomerMobiles,
     getExistingPurchases,
     assignCustomer,
+    bulkAssignCustomers,
   } = useSupabaseCRM();
 
   if (isLoading) {
@@ -131,6 +132,7 @@ const Index = () => {
                 onDelete={deleteCustomer} 
                 salesTeamMembers={salesTeamMembers}
                 onAssignCustomer={assignCustomer}
+                onBulkAssign={bulkAssignCustomers}
               />
             </section>
           </TabsContent>

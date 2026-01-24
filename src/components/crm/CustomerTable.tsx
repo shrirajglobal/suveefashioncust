@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc, UserCheck } from "lucide-react";
+import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc, UserCheck, Users } from "lucide-react";
 import { CustomerWithPurchases } from "@/types/crm";
 import { formatINR, formatDaysAgo, formatDate } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -32,12 +33,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 interface CustomerTableProps {
   customers: CustomerWithPurchases[];
   onDelete: (id: string) => void;
   salesTeamMembers?: Array<{ id: string; name: string }>;
   onAssignCustomer?: (customerId: string, salesUserId: string | null) => Promise<boolean>;
+  onBulkAssign?: (customerIds: string[], salesUserId: string | null) => Promise<boolean>;
 }
 
 type SortField = "name" | "city" | "totalPurchaseAmount" | "daysSinceLastPurchase" | "assignedTo";
@@ -48,11 +51,15 @@ export function CustomerTable({
   onDelete,
   salesTeamMembers = [],
   onAssignCustomer,
+  onBulkAssign,
 }: CustomerTableProps) {
   const { userRole } = useAuth();
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAssignValue, setBulkAssignValue] = useState<string>("");
+  const [isAssigning, setIsAssigning] = useState(false);
 
   const canAssignCustomers = userRole === "super_admin" || userRole === "accounts";
 
@@ -122,8 +129,86 @@ export function CustomerTable({
     await onAssignCustomer(customerId, salesUserId);
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === sortedCustomers.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(sortedCustomers.map((c) => c.id)));
+    }
+  };
+
+  const handleBulkAssign = async () => {
+    if (!onBulkAssign || selectedIds.size === 0 || !bulkAssignValue) return;
+    
+    setIsAssigning(true);
+    const salesUserId = bulkAssignValue === "unassigned" ? null : bulkAssignValue;
+    const success = await onBulkAssign(Array.from(selectedIds), salesUserId);
+    
+    if (success) {
+      setSelectedIds(new Set());
+      setBulkAssignValue("");
+    }
+    setIsAssigning(false);
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setBulkAssignValue("");
+  };
+
   return (
     <div className="space-y-4">
+      {/* Bulk Action Bar */}
+      {canAssignCustomers && selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg border animate-fade-in">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">
+              {selectedIds.size} customer{selectedIds.size !== 1 ? "s" : ""} selected
+            </span>
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <Select value={bulkAssignValue} onValueChange={setBulkAssignValue}>
+              <SelectTrigger className="w-44 h-8 text-xs">
+                <SelectValue placeholder="Assign to..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unassigned">
+                  <span className="text-muted-foreground">Unassigned</span>
+                </SelectItem>
+                {salesTeamMembers.map((member) => (
+                  <SelectItem key={member.id} value={member.id}>
+                    {member.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              onClick={handleBulkAssign}
+              disabled={!bulkAssignValue || isAssigning}
+            >
+              {isAssigning ? "Assigning..." : "Assign"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={clearSelection}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -138,6 +223,15 @@ export function CustomerTable({
         <Table>
           <TableHeader>
             <TableRow>
+              {canAssignCustomers && (
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={sortedCustomers.length > 0 && selectedIds.size === sortedCustomers.length}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all"
+                  />
+                </TableHead>
+              )}
               <TableHead
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => handleSort("name")}
@@ -192,7 +286,7 @@ export function CustomerTable({
           <TableBody>
             {sortedCustomers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8">
+                <TableCell colSpan={canAssignCustomers ? 9 : 8} className="text-center py-8">
                   <p className="text-muted-foreground">
                     {search ? "No customers found" : "No customers yet. Add your first customer!"}
                   </p>
@@ -201,6 +295,15 @@ export function CustomerTable({
             ) : (
               sortedCustomers.map((customer) => (
                 <TableRow key={customer.id} className="animate-fade-in">
+                  {canAssignCustomers && (
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(customer.id)}
+                        onCheckedChange={() => toggleSelect(customer.id)}
+                        aria-label={`Select ${customer.name}`}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <div>
                       <p className="font-medium">{customer.name}</p>
