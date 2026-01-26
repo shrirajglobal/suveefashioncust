@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Phone, MapPin, IndianRupee } from "lucide-react";
+import { ChevronDown, ChevronUp, Phone, MapPin, IndianRupee, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CustomerWithPurchases, Segment } from "@/types/crm";
 import { formatINR, formatDaysAgo } from "@/lib/formatters";
@@ -92,13 +92,25 @@ export function SegmentCard({ segment }: SegmentCardProps) {
                       {customer.name}
                     </a>
                     <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <a 
-                        href={`tel:${customer.mobileNo}`}
-                        className="flex items-center gap-1 hover:text-primary transition-colors"
-                      >
-                        <Phone className="h-3 w-3" />
-                        {customer.mobileNo}
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <a 
+                          href={`tel:${customer.mobileNo}`}
+                          className="flex items-center gap-1 hover:text-primary transition-colors"
+                          title="Call"
+                        >
+                          <Phone className="h-4 w-4" />
+                        </a>
+                        <a 
+                          href={`https://wa.me/${customer.mobileNo.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-success hover:text-success/80 transition-colors"
+                          title="WhatsApp"
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </a>
+                        <span>{customer.mobileNo}</span>
+                      </div>
                       <span className="flex items-center gap-1">
                         <MapPin className="h-3 w-3" />
                         {customer.city}
