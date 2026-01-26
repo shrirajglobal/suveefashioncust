@@ -158,3 +158,30 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Screen Protection Styles */
+@layer utilities {
+  /* Disable text selection globally for security */
+  .select-none {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  /* Disable image dragging */
+  img {
+    -webkit-user-drag: none;
+    -khtml-user-drag: none;
+    -moz-user-drag: none;
+    -o-user-drag: none;
+    user-drag: none;
+  }
+  
+  /* Disable printing */
+  @media print {
+    body {
+      display: none !important;
+    }
+  }
+}
