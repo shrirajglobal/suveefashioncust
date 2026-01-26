@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Phone, MapPin, IndianRupee, MessageCircle, PhoneOff } from "lucide-react";
+import { ChevronDown, ChevronUp, Phone, MapPin, IndianRupee, MessageCircle, PhoneOff, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CustomerWithPurchases, Segment } from "@/types/crm";
 import { formatINR, formatDaysAgo } from "@/lib/formatters";
@@ -10,6 +10,15 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { BulkWhatsAppDialog } from "./BulkWhatsAppDialog";
+
+// Map segment IDs to bulk WhatsApp segment values
+const SEGMENT_TO_WHATSAPP: Record<string, string> = {
+  "30d": "30d",
+  "3m": "3m",
+  "6m": "6m",
+  "12m": "12m",
+};
 
 interface SegmentCardProps {
   segment: Segment & {
@@ -17,11 +26,16 @@ interface SegmentCardProps {
     totalAmount: number;
     customers: CustomerWithPurchases[];
   };
+  allCustomers?: CustomerWithPurchases[];
 }
 
-export function SegmentCard({ segment }: SegmentCardProps) {
+export function SegmentCard({ segment, allCustomers }: SegmentCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { isAdminOrAccounts } = useAuth();
+  
+  // Determine which WhatsApp segment this card corresponds to
+  const whatsappSegment = SEGMENT_TO_WHATSAPP[segment.id];
+  const showWhatsAppButton = isAdminOrAccounts && whatsappSegment && segment.count > 0;
 
   return (
     <div
@@ -72,6 +86,27 @@ export function SegmentCard({ segment }: SegmentCardProps) {
             </div>
           </Button>
         </CollapsibleTrigger>
+
+        {/* WhatsApp Bulk Send Button - Only for Admin/Accounts */}
+        {showWhatsAppButton && allCustomers && (
+          <div className="px-5 pb-3 pt-0">
+            <BulkWhatsAppDialog
+              customers={allCustomers}
+              initialSegment={whatsappSegment}
+              trigger={
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="gap-2 text-success border-success/50 hover:bg-success/10"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Send className="h-3 w-3" />
+                  Send WhatsApp to Segment
+                </Button>
+              }
+            />
+          </div>
+        )}
 
         <CollapsibleContent>
           {segment.customers.length === 0 ? (
