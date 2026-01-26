@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc, UserCheck, Users, MessageCircle } from "lucide-react";
+import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc, UserCheck, Users, MessageCircle, PhoneOff } from "lucide-react";
 import { CustomerWithPurchases } from "@/types/crm";
 import { formatINR, formatDaysAgo, formatDate } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,7 @@ interface CustomerTableProps {
   salesTeamMembers?: Array<{ id: string; name: string }>;
   onAssignCustomer?: (customerId: string, salesUserId: string | null) => Promise<boolean>;
   onBulkAssign?: (customerIds: string[], salesUserId: string | null) => Promise<boolean>;
+  onToggleDND?: (customerId: string, dndStatus: boolean) => Promise<boolean>;
 }
 
 type SortField = "name" | "city" | "totalPurchaseAmount" | "daysSinceLastPurchase" | "assignedTo";
@@ -52,8 +54,9 @@ export function CustomerTable({
   salesTeamMembers = [],
   onAssignCustomer,
   onBulkAssign,
+  onToggleDND,
 }: CustomerTableProps) {
-  const { userRole } = useAuth();
+  const { userRole, isAdminOrAccounts } = useAuth();
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
@@ -318,25 +321,37 @@ export function CustomerTable({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <a 
-                        href={`tel:${customer.mobileNo}`}
-                        className="flex items-center gap-1 text-sm hover:text-primary transition-colors"
-                        title="Call"
-                      >
-                        <Phone className="h-4 w-4" />
-                      </a>
-                      <a 
-                        href={`https://wa.me/${customer.mobileNo.replace(/\D/g, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-sm text-success hover:text-success/80 transition-colors"
-                        title="WhatsApp"
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                      </a>
-                      <span className="text-sm">{customer.mobileNo}</span>
-                    </div>
+                    {customer.dnd && !isAdminOrAccounts ? (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <PhoneOff className="h-4 w-4" />
+                        <span className="text-sm italic">DND</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <a 
+                          href={`tel:${customer.mobileNo}`}
+                          className="flex items-center gap-1 text-sm hover:text-primary transition-colors"
+                          title="Call"
+                        >
+                          <Phone className="h-4 w-4" />
+                        </a>
+                        <a 
+                          href={`https://wa.me/${customer.mobileNo.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-sm text-success hover:text-success/80 transition-colors"
+                          title="WhatsApp"
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </a>
+                        <span className="text-sm">{customer.mobileNo}</span>
+                        {customer.dnd && isAdminOrAccounts && (
+                          <Badge variant="outline" className="text-destructive border-destructive text-xs">
+                            DND
+                          </Badge>
+                        )}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 text-sm">
@@ -389,30 +404,47 @@ export function CustomerTable({
                     {getUrgencyBadge(customer.daysSinceLastPurchase)}
                   </TableCell>
                   <TableCell>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                    <div className="flex items-center gap-1">
+                      {isAdminOrAccounts && onToggleDND && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onToggleDND(customer.id, !customer.dnd)}
+                          title={customer.dnd ? "Remove DND" : "Mark as DND"}
+                        >
+                          <PhoneOff className={cn(
+                            "h-4 w-4",
+                            customer.dnd 
+                              ? "text-destructive" 
+                              : "text-muted-foreground hover:text-destructive"
+                          )} />
                         </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Customer</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you want to delete {customer.name}? This will also delete all their purchase records. This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => onDelete(customer.id)}
-                            className="bg-destructive hover:bg-destructive/90"
-                          >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                      )}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Customer</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete {customer.name}? This will also delete all their purchase records. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => onDelete(customer.id)}
+                              className="bg-destructive hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

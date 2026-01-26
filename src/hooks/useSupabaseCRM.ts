@@ -14,6 +14,7 @@ interface DBCustomer {
   created_at: string;
   assigned_to: string | null;
   created_by: string | null;
+  dnd: boolean;
 }
 
 interface DBTransaction {
@@ -36,6 +37,7 @@ function mapDBCustomer(db: DBCustomer, profilesMap?: Map<string, string>): Custo
     createdAt: new Date(db.created_at),
     assignedTo: db.assigned_to,
     assignedToName: db.assigned_to && profilesMap ? profilesMap.get(db.assigned_to) : null,
+    dnd: db.dnd,
   };
 }
 
@@ -455,6 +457,23 @@ export function useSupabaseCRM() {
     return true;
   };
 
+  // Toggle DND status for a customer (Super Admin/Accounts only - enforced by RLS)
+  const toggleDND = async (customerId: string, dndStatus: boolean) => {
+    const { error } = await supabase
+      .from("customers")
+      .update({ dnd: dndStatus })
+      .eq("id", customerId);
+
+    if (error) {
+      toast.error("Failed to update DND status: " + error.message);
+      return false;
+    }
+
+    toast.success(dndStatus ? "Customer marked as DND" : "DND status removed");
+    await fetchData();
+    return true;
+  };
+
   return {
     customers: customersWithPurchases,
     purchases,
@@ -476,6 +495,7 @@ export function useSupabaseCRM() {
     getExistingPurchases,
     assignCustomer,
     bulkAssignCustomers,
+    toggleDND,
     refetch: fetchData,
   };
 }
