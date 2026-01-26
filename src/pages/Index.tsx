@@ -34,6 +34,7 @@ const Index = () => {
     getExistingPurchases,
     assignCustomer,
     bulkAssignCustomers,
+    toggleDND,
   } = useSupabaseCRM();
 
   // Filter purchases based on selected date range
@@ -165,6 +166,7 @@ const Index = () => {
                 salesTeamMembers={salesTeamMembers}
                 onAssignCustomer={assignCustomer}
                 onBulkAssign={bulkAssignCustomers}
+                onToggleDND={toggleDND}
               />
             </section>
           </TabsContent>

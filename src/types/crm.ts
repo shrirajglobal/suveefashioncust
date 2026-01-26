@@ -7,6 +7,7 @@ export interface Customer {
   createdAt: Date;
   assignedTo?: string | null;
   assignedToName?: string | null;
+  dnd: boolean;
 }
 
 export interface Purchase {

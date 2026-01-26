@@ -21,6 +21,7 @@ export type Database = {
           city: string | null
           created_at: string
           created_by: string | null
+          dnd: boolean
           id: string
           mobile_no: string
           name: string
@@ -32,6 +33,7 @@ export type Database = {
           city?: string | null
           created_at?: string
           created_by?: string | null
+          dnd?: boolean
           id?: string
           mobile_no: string
           name: string
@@ -43,6 +45,7 @@ export type Database = {
           city?: string | null
           created_at?: string
           created_by?: string | null
+          dnd?: boolean
           id?: string
           mobile_no?: string
           name?: string

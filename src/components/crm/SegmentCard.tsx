@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Phone, MapPin, IndianRupee, MessageCircle } from "lucide-react";
+import { ChevronDown, ChevronUp, Phone, MapPin, IndianRupee, MessageCircle, PhoneOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CustomerWithPurchases, Segment } from "@/types/crm";
 import { formatINR, formatDaysAgo } from "@/lib/formatters";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -20,6 +21,7 @@ interface SegmentCardProps {
 
 export function SegmentCard({ segment }: SegmentCardProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const { isAdminOrAccounts } = useAuth();
 
   return (
     <div
@@ -85,37 +87,52 @@ export function SegmentCard({ segment }: SegmentCardProps) {
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <div className="space-y-1">
-                    <a 
-                      href={`tel:${customer.mobileNo}`}
-                      className="font-medium hover:text-primary hover:underline transition-colors"
-                    >
-                      {customer.name}
-                    </a>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2">
+                    {customer.dnd && !isAdminOrAccounts ? (
+                      <>
+                        <p className="font-medium">{customer.name}</p>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <PhoneOff className="h-4 w-4" />
+                          <span className="italic">DND</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
                         <a 
                           href={`tel:${customer.mobileNo}`}
-                          className="flex items-center gap-1 hover:text-primary transition-colors"
-                          title="Call"
+                          className="font-medium hover:text-primary hover:underline transition-colors"
                         >
-                          <Phone className="h-4 w-4" />
+                          {customer.name}
                         </a>
-                        <a 
-                          href={`https://wa.me/${customer.mobileNo.replace(/\D/g, '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-success hover:text-success/80 transition-colors"
-                          title="WhatsApp"
-                        >
-                          <MessageCircle className="h-4 w-4" />
-                        </a>
-                        <span>{customer.mobileNo}</span>
-                      </div>
-                      <span className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {customer.city}
-                      </span>
-                    </div>
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            <a 
+                              href={`tel:${customer.mobileNo}`}
+                              className="flex items-center gap-1 hover:text-primary transition-colors"
+                              title="Call"
+                            >
+                              <Phone className="h-4 w-4" />
+                            </a>
+                            <a 
+                              href={`https://wa.me/${customer.mobileNo.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-success hover:text-success/80 transition-colors"
+                              title="WhatsApp"
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                            </a>
+                            <span>{customer.mobileNo}</span>
+                            {customer.dnd && isAdminOrAccounts && (
+                              <span className="text-destructive text-xs font-medium">(DND)</span>
+                            )}
+                          </div>
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {customer.city}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <div className="text-right space-y-1">
                     <p className="font-medium flex items-center justify-end gap-1">
