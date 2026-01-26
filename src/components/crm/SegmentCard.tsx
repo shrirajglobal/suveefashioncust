@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo, useCallback } from "react";
 import { ChevronDown, ChevronUp, Phone, MapPin, IndianRupee, MessageCircle, PhoneOff, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CustomerWithPurchases, Segment } from "@/types/crm";
@@ -29,13 +29,93 @@ interface SegmentCardProps {
   allCustomers?: CustomerWithPurchases[];
 }
 
-export function SegmentCard({ segment, allCustomers }: SegmentCardProps) {
+// Memoized customer row component
+const CustomerRow = memo(function CustomerRow({ 
+  customer, 
+  isAdminOrAccounts,
+  index 
+}: { 
+  customer: CustomerWithPurchases; 
+  isAdminOrAccounts: boolean;
+  index: number;
+}) {
+  return (
+    <div
+      className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors animate-slide-in"
+      style={{ animationDelay: `${index * 50}ms` }}
+    >
+      <div className="space-y-1">
+        {customer.dnd && !isAdminOrAccounts ? (
+          <>
+            <p className="font-medium">{customer.name}</p>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <PhoneOff className="h-4 w-4" />
+              <span className="italic">DND</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <a 
+              href={`tel:${customer.mobileNo}`}
+              className="font-medium hover:text-primary hover:underline transition-colors"
+            >
+              {customer.name}
+            </a>
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <a 
+                  href={`tel:${customer.mobileNo}`}
+                  className="flex items-center gap-1 hover:text-primary transition-colors"
+                  title="Call"
+                >
+                  <Phone className="h-4 w-4" />
+                </a>
+                <a 
+                  href={`https://wa.me/${customer.mobileNo.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-success hover:text-success/80 transition-colors"
+                  title="WhatsApp"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                </a>
+                <span>{customer.mobileNo}</span>
+                {customer.dnd && isAdminOrAccounts && (
+                  <span className="text-destructive text-xs font-medium">(DND)</span>
+                )}
+              </div>
+              <span className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                {customer.city}
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+      <div className="text-right space-y-1">
+        <p className="font-medium flex items-center justify-end gap-1">
+          <IndianRupee className="h-3.5 w-3.5" />
+          {customer.totalPurchaseAmount.toLocaleString("en-IN")}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {formatDaysAgo(customer.daysSinceLastPurchase)}
+        </p>
+      </div>
+    </div>
+  );
+});
+
+export const SegmentCard = memo(function SegmentCard({ segment, allCustomers }: SegmentCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { isAdminOrAccounts } = useAuth();
   
   // Determine which WhatsApp segment this card corresponds to
   const whatsappSegment = SEGMENT_TO_WHATSAPP[segment.id];
   const showWhatsAppButton = isAdminOrAccounts && whatsappSegment && segment.count > 0;
+
+  const handleOpenChange = useCallback((open: boolean) => {
+    setIsOpen(open);
+  }, []);
 
   return (
     <div
@@ -44,7 +124,7 @@ export function SegmentCard({ segment, allCustomers }: SegmentCardProps) {
         segment.borderClass
       )}
     >
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <Collapsible open={isOpen} onOpenChange={handleOpenChange}>
         <CollapsibleTrigger asChild>
           <Button
             variant="ghost"
@@ -116,69 +196,12 @@ export function SegmentCard({ segment, allCustomers }: SegmentCardProps) {
           ) : (
             <div className="divide-y border-t">
               {segment.customers.map((customer, index) => (
-                <div
-                  key={customer.id}
-                  className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors animate-slide-in"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <div className="space-y-1">
-                    {customer.dnd && !isAdminOrAccounts ? (
-                      <>
-                        <p className="font-medium">{customer.name}</p>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <PhoneOff className="h-4 w-4" />
-                          <span className="italic">DND</span>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <a 
-                          href={`tel:${customer.mobileNo}`}
-                          className="font-medium hover:text-primary hover:underline transition-colors"
-                        >
-                          {customer.name}
-                        </a>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-2">
-                            <a 
-                              href={`tel:${customer.mobileNo}`}
-                              className="flex items-center gap-1 hover:text-primary transition-colors"
-                              title="Call"
-                            >
-                              <Phone className="h-4 w-4" />
-                            </a>
-                            <a 
-                              href={`https://wa.me/${customer.mobileNo.replace(/\D/g, '')}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-success hover:text-success/80 transition-colors"
-                              title="WhatsApp"
-                            >
-                              <MessageCircle className="h-4 w-4" />
-                            </a>
-                            <span>{customer.mobileNo}</span>
-                            {customer.dnd && isAdminOrAccounts && (
-                              <span className="text-destructive text-xs font-medium">(DND)</span>
-                            )}
-                          </div>
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {customer.city}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  <div className="text-right space-y-1">
-                    <p className="font-medium flex items-center justify-end gap-1">
-                      <IndianRupee className="h-3.5 w-3.5" />
-                      {customer.totalPurchaseAmount.toLocaleString("en-IN")}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatDaysAgo(customer.daysSinceLastPurchase)}
-                    </p>
-                  </div>
-                </div>
+                <CustomerRow 
+                  key={customer.id} 
+                  customer={customer} 
+                  isAdminOrAccounts={isAdminOrAccounts}
+                  index={index}
+                />
               ))}
             </div>
           )}
@@ -186,4 +209,4 @@ export function SegmentCard({ segment, allCustomers }: SegmentCardProps) {
       </Collapsible>
     </div>
   );
-}
+});
