@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { Users, ShoppingBag, IndianRupee, TrendingUp } from "lucide-react";
 import { useSupabaseCRM } from "@/hooks/useSupabaseCRM";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,13 +12,16 @@ import { AddPurchaseForm } from "@/components/crm/AddPurchaseForm";
 import { ImportCSVForm } from "@/components/crm/ImportCSVForm";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DateRangeFilter, DateRangeType, getDateRange, getDateRangeLabel } from "@/components/crm/DateRangeFilter";
 
 const Index = () => {
   const { isAdminOrAccounts } = useAuth();
+  const [dateRange, setDateRange] = useState<DateRangeType>("month");
+  
   const {
     customers,
+    purchases,
     segmentStats,
-    stats,
     isLoading,
     salesTeamMembers,
     addCustomer,
@@ -31,6 +35,23 @@ const Index = () => {
     assignCustomer,
     bulkAssignCustomers,
   } = useSupabaseCRM();
+
+  // Filter purchases based on selected date range
+  const filteredStats = useMemo(() => {
+    const { start, end } = getDateRange(dateRange);
+    
+    const filteredPurchases = purchases.filter((p) => {
+      const purchaseDate = new Date(p.date);
+      return purchaseDate >= start && purchaseDate <= end;
+    });
+
+    const totalCustomers = customers.length;
+    const totalPurchases = filteredPurchases.length;
+    const totalRevenue = filteredPurchases.reduce((sum, p) => sum + p.amount, 0);
+    const avgPurchaseValue = totalPurchases > 0 ? totalRevenue / totalPurchases : 0;
+
+    return { totalCustomers, totalPurchases, totalRevenue, avgPurchaseValue };
+  }, [customers, purchases, dateRange]);
 
   if (isLoading) {
     return (
@@ -52,29 +73,40 @@ const Index = () => {
       <Header />
 
       <main className="container mx-auto px-4 py-8 space-y-8">
+        {/* Date Range Filter */}
+        <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">Dashboard Overview</h2>
+            <p className="text-sm text-muted-foreground">
+              Showing data for: {getDateRangeLabel(dateRange)}
+            </p>
+          </div>
+          <DateRangeFilter value={dateRange} onChange={setDateRange} />
+        </section>
+
         {/* Stats Overview */}
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Customers"
-            value={stats.totalCustomers}
+            value={filteredStats.totalCustomers}
             icon={Users}
             description="Registered customers"
           />
           <StatCard
             title="Total Purchases"
-            value={stats.totalPurchases}
+            value={filteredStats.totalPurchases}
             icon={ShoppingBag}
-            description="All time purchases"
+            description={getDateRangeLabel(dateRange)}
           />
           <StatCard
             title="Total Revenue"
-            value={formatINR(stats.totalRevenue)}
+            value={formatINR(filteredStats.totalRevenue)}
             icon={IndianRupee}
-            description="Lifetime value"
+            description={getDateRangeLabel(dateRange)}
           />
           <StatCard
             title="Avg. Purchase"
-            value={formatINR(stats.avgPurchaseValue)}
+            value={formatINR(filteredStats.avgPurchaseValue)}
             icon={TrendingUp}
             description="Per transaction"
           />
