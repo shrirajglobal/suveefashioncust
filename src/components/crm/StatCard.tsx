@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +14,7 @@ interface StatCardProps {
   className?: string;
 }
 
-export function StatCard({
+export const StatCard = memo(function StatCard({
   title,
   value,
   icon: Icon,
@@ -54,4 +55,4 @@ export function StatCard({
       </div>
     </div>
   );
-}
+});

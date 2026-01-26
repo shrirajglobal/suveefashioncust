@@ -1,12 +1,21 @@
+import { memo, useCallback } from "react";
 import { Users, LogOut, Shield } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-export function Header() {
+export const Header = memo(function Header() {
   const { user, userRole, signOut } = useAuth();
   const navigate = useNavigate();
+
+  const handleHomeClick = useCallback(() => {
+    navigate("/");
+  }, [navigate]);
+
+  const handleUsersClick = useCallback(() => {
+    navigate("/users");
+  }, [navigate]);
 
   const getRoleBadge = () => {
     if (!userRole) return null;
@@ -29,14 +38,14 @@ export function Header() {
           <div className="flex items-center gap-3">
             <div 
               className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary cursor-pointer"
-              onClick={() => navigate("/")}
+              onClick={handleHomeClick}
             >
               <Users className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
               <h1 
                 className="text-xl font-bold tracking-tight cursor-pointer"
-                onClick={() => navigate("/")}
+                onClick={handleHomeClick}
               >
                 Suvee Fashion CRM
                 {getRoleBadge()}
@@ -52,7 +61,7 @@ export function Header() {
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  onClick={() => navigate("/users")}
+                  onClick={handleUsersClick}
                   className="hidden sm:flex"
                 >
                   <Shield className="h-4 w-4 mr-1" />
@@ -72,4 +81,4 @@ export function Header() {
       </div>
     </header>
   );
-}
+});

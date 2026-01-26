@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, memo } from "react";
 import { Users, ShoppingBag, IndianRupee, TrendingUp } from "lucide-react";
 import { useSupabaseCRM } from "@/hooks/useSupabaseCRM";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +14,57 @@ import { BulkWhatsAppDialog } from "@/components/crm/BulkWhatsAppDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRangeFilter, DateRangeType, getDateRange, getDateRangeLabel } from "@/components/crm/DateRangeFilter";
+
+// Memoized stat cards section
+const StatsSection = memo(({ stats, dateRangeLabel }: { 
+  stats: { totalCustomers: number; totalPurchases: number; totalRevenue: number; avgPurchaseValue: number };
+  dateRangeLabel: string;
+}) => (
+  <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <StatCard
+      title="Total Customers"
+      value={stats.totalCustomers}
+      icon={Users}
+      description="Registered customers"
+    />
+    <StatCard
+      title="Total Purchases"
+      value={stats.totalPurchases}
+      icon={ShoppingBag}
+      description={dateRangeLabel}
+    />
+    <StatCard
+      title="Total Revenue"
+      value={formatINR(stats.totalRevenue)}
+      icon={IndianRupee}
+      description={dateRangeLabel}
+    />
+    <StatCard
+      title="Avg. Purchase"
+      value={formatINR(stats.avgPurchaseValue)}
+      icon={TrendingUp}
+      description="Per transaction"
+    />
+  </section>
+));
+
+StatsSection.displayName = "StatsSection";
+
+// Loading skeleton
+const LoadingSkeleton = memo(() => (
+  <div className="min-h-screen bg-background">
+    <Header />
+    <main className="container mx-auto px-4 py-8">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <Skeleton key={i} className="h-32 rounded-xl" />
+        ))}
+      </div>
+    </main>
+  </div>
+));
+
+LoadingSkeleton.displayName = "LoadingSkeleton";
 
 const Index = () => {
   const { isAdminOrAccounts } = useAuth();
@@ -38,7 +89,10 @@ const Index = () => {
     toggleDND,
   } = useSupabaseCRM();
 
-  // Filter purchases based on selected date range
+  // Memoized date range label
+  const dateRangeLabel = useMemo(() => getDateRangeLabel(dateRange), [dateRange]);
+
+  // Filter purchases based on selected date range - optimized with useMemo
   const filteredStats = useMemo(() => {
     const { start, end } = getDateRange(dateRange);
     
@@ -53,21 +107,20 @@ const Index = () => {
     const avgPurchaseValue = totalPurchases > 0 ? totalRevenue / totalPurchases : 0;
 
     return { totalCustomers, totalPurchases, totalRevenue, avgPurchaseValue };
-  }, [customers, purchases, dateRange]);
+  }, [customers.length, purchases, dateRange]);
+
+  // Memoized callbacks to prevent unnecessary re-renders
+  const handleDateRangeChange = useCallback((value: DateRangeType) => {
+    setDateRange(value);
+  }, []);
+
+  // Memoized lookup functions
+  const customerLookup = useMemo(() => getCustomerMobileLookup(), [customers]);
+  const existingMobiles = useMemo(() => getExistingCustomerMobiles(), [customers]);
+  const existingPurchasesList = useMemo(() => getExistingPurchases(), [purchases]);
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <main className="container mx-auto px-4 py-8">
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-32 rounded-xl" />
-            ))}
-          </div>
-        </main>
-      </div>
-    );
+    return <LoadingSkeleton />;
   }
 
   return (
@@ -80,39 +133,14 @@ const Index = () => {
           <div>
             <h2 className="text-lg font-semibold">Dashboard Overview</h2>
             <p className="text-sm text-muted-foreground">
-              Showing data for: {getDateRangeLabel(dateRange)}
+              Showing data for: {dateRangeLabel}
             </p>
           </div>
-          <DateRangeFilter value={dateRange} onChange={setDateRange} />
+          <DateRangeFilter value={dateRange} onChange={handleDateRangeChange} />
         </section>
 
-        {/* Stats Overview */}
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="Total Customers"
-            value={filteredStats.totalCustomers}
-            icon={Users}
-            description="Registered customers"
-          />
-          <StatCard
-            title="Total Purchases"
-            value={filteredStats.totalPurchases}
-            icon={ShoppingBag}
-            description={getDateRangeLabel(dateRange)}
-          />
-          <StatCard
-            title="Total Revenue"
-            value={formatINR(filteredStats.totalRevenue)}
-            icon={IndianRupee}
-            description={getDateRangeLabel(dateRange)}
-          />
-          <StatCard
-            title="Avg. Purchase"
-            value={formatINR(filteredStats.avgPurchaseValue)}
-            icon={TrendingUp}
-            description="Per transaction"
-          />
-        </section>
+        {/* Stats Overview - Memoized */}
+        <StatsSection stats={filteredStats} dateRangeLabel={dateRangeLabel} />
 
         {/* Action Buttons */}
         <section className="flex flex-wrap gap-3">
@@ -121,9 +149,9 @@ const Index = () => {
           <ImportCSVForm
             onImportCustomers={importCustomers}
             onImportPurchases={importPurchases}
-            customerLookup={getCustomerMobileLookup()}
-            existingCustomerMobiles={getExistingCustomerMobiles()}
-            existingPurchases={getExistingPurchases()}
+            customerLookup={customerLookup}
+            existingCustomerMobiles={existingMobiles}
+            existingPurchases={existingPurchasesList}
             salesTeamMembers={salesTeamMembers}
             canAssignCustomers={isAdminOrAccounts}
           />

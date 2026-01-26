@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback, memo } from "react";
 import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc, UserCheck, Users, MessageCircle, PhoneOff } from "lucide-react";
 import { CustomerWithPurchases } from "@/types/crm";
 import { formatINR, formatDaysAgo, formatDate } from "@/lib/formatters";
@@ -48,7 +48,7 @@ interface CustomerTableProps {
 type SortField = "name" | "city" | "totalPurchaseAmount" | "daysSinceLastPurchase" | "assignedTo";
 type SortOrder = "asc" | "desc";
 
-export function CustomerTable({ 
+export const CustomerTable = memo(function CustomerTable({ 
   customers, 
   onDelete,
   salesTeamMembers = [],
@@ -66,73 +66,79 @@ export function CustomerTable({
 
   const canAssignCustomers = userRole === "super_admin" || userRole === "accounts";
 
-  const filteredCustomers = customers.filter(
-    (customer) =>
-      customer.name.toLowerCase().includes(search.toLowerCase()) ||
-      customer.city.toLowerCase().includes(search.toLowerCase()) ||
-      customer.mobileNo.includes(search) ||
-      (customer.assignedToName?.toLowerCase().includes(search.toLowerCase()) ?? false)
+  const searchLower = search.toLowerCase();
+  
+  const filteredCustomers = useMemo(() => 
+    customers.filter(
+      (customer) =>
+        customer.name.toLowerCase().includes(searchLower) ||
+        customer.city.toLowerCase().includes(searchLower) ||
+        customer.mobileNo.includes(search) ||
+        (customer.assignedToName?.toLowerCase().includes(searchLower) ?? false)
+    ), [customers, searchLower, search]
   );
 
-  const sortedCustomers = [...filteredCustomers].sort((a, b) => {
-    let comparison = 0;
+  const sortedCustomers = useMemo(() => {
+    return [...filteredCustomers].sort((a, b) => {
+      let comparison = 0;
 
-    switch (sortField) {
-      case "name":
-        comparison = a.name.localeCompare(b.name);
-        break;
-      case "city":
-        comparison = a.city.localeCompare(b.city);
-        break;
-      case "totalPurchaseAmount":
-        comparison = a.totalPurchaseAmount - b.totalPurchaseAmount;
-        break;
-      case "daysSinceLastPurchase":
-        const aDays = a.daysSinceLastPurchase ?? Infinity;
-        const bDays = b.daysSinceLastPurchase ?? Infinity;
-        comparison = aDays - bDays;
-        break;
-      case "assignedTo":
-        comparison = (a.assignedToName ?? "").localeCompare(b.assignedToName ?? "");
-        break;
-    }
+      switch (sortField) {
+        case "name":
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case "city":
+          comparison = a.city.localeCompare(b.city);
+          break;
+        case "totalPurchaseAmount":
+          comparison = a.totalPurchaseAmount - b.totalPurchaseAmount;
+          break;
+        case "daysSinceLastPurchase":
+          const aDays = a.daysSinceLastPurchase ?? Infinity;
+          const bDays = b.daysSinceLastPurchase ?? Infinity;
+          comparison = aDays - bDays;
+          break;
+        case "assignedTo":
+          comparison = (a.assignedToName ?? "").localeCompare(b.assignedToName ?? "");
+          break;
+      }
 
-    return sortOrder === "asc" ? comparison : -comparison;
-  });
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
+  }, [filteredCustomers, sortField, sortOrder]);
 
-  const handleSort = (field: SortField) => {
+  const handleSort = useCallback((field: SortField) => {
     if (sortField === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+      setSortOrder(prev => prev === "asc" ? "desc" : "asc");
     } else {
       setSortField(field);
       setSortOrder("asc");
     }
-  };
+  }, [sortField]);
 
-  const SortIcon = ({ field }: { field: SortField }) => {
+  const SortIcon = memo(({ field }: { field: SortField }) => {
     if (sortField !== field) return null;
     return sortOrder === "asc" ? (
       <SortAsc className="h-4 w-4" />
     ) : (
       <SortDesc className="h-4 w-4" />
     );
-  };
+  });
 
-  const getUrgencyBadge = (days: number | null) => {
+  const getUrgencyBadge = useCallback((days: number | null) => {
     if (days === null) return <Badge variant="secondary">No Purchases</Badge>;
     if (days <= 7) return <Badge className="bg-success">Active</Badge>;
     if (days <= 15) return <Badge className="bg-warning">Recent</Badge>;
     if (days <= 30) return <Badge className="bg-urgent">Follow Up</Badge>;
     return <Badge variant="destructive">At Risk</Badge>;
-  };
+  }, []);
 
-  const handleAssign = async (customerId: string, value: string) => {
+  const handleAssign = useCallback(async (customerId: string, value: string) => {
     if (!onAssignCustomer) return;
     const salesUserId = value === "unassigned" ? null : value;
     await onAssignCustomer(customerId, salesUserId);
-  };
+  }, [onAssignCustomer]);
 
-  const toggleSelect = (id: string) => {
+  const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -142,17 +148,17 @@ export function CustomerTable({
       }
       return next;
     });
-  };
+  }, []);
 
-  const toggleSelectAll = () => {
+  const toggleSelectAll = useCallback(() => {
     if (selectedIds.size === sortedCustomers.length) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(sortedCustomers.map((c) => c.id)));
     }
-  };
+  }, [selectedIds.size, sortedCustomers]);
 
-  const handleBulkAssign = async () => {
+  const handleBulkAssign = useCallback(async () => {
     if (!onBulkAssign || selectedIds.size === 0 || !bulkAssignValue) return;
     
     setIsAssigning(true);
@@ -164,12 +170,12 @@ export function CustomerTable({
       setBulkAssignValue("");
     }
     setIsAssigning(false);
-  };
+  }, [onBulkAssign, selectedIds, bulkAssignValue]);
 
-  const clearSelection = () => {
+  const clearSelection = useCallback(() => {
     setSelectedIds(new Set());
     setBulkAssignValue("");
-  };
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -451,4 +457,4 @@ export function CustomerTable({
       </div>
     </div>
   );
-}
+});
