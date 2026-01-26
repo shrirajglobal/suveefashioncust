@@ -222,7 +222,7 @@ export function CustomerTable({
         />
       </div>
 
-      <div className="rounded-xl border bg-card shadow-card overflow-hidden">
+      <div className="rounded-xl border bg-card shadow-card overflow-x-auto overflow-y-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -283,7 +283,7 @@ export function CustomerTable({
                 </div>
               </TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="w-12"></TableHead>
+              <TableHead className="min-w-[140px] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -403,8 +403,8 @@ export function CustomerTable({
                   <TableCell>
                     {getUrgencyBadge(customer.daysSinceLastPurchase)}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2">
                       {isAdminOrAccounts && onToggleDND && (
                         <Button
                           variant={customer.dnd ? "destructive" : "outline"}
@@ -414,7 +414,7 @@ export function CustomerTable({
                           className="h-8 px-2"
                         >
                           <PhoneOff className="h-4 w-4 mr-1" />
-                          <span className="text-xs">{customer.dnd ? "DND" : "DND"}</span>
+                          <span className="text-xs">DND</span>
                         </Button>
                       )}
                       <AlertDialog>
