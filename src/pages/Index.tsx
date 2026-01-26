@@ -10,6 +10,7 @@ import { CustomerTable } from "@/components/crm/CustomerTable";
 import { AddCustomerForm } from "@/components/crm/AddCustomerForm";
 import { AddPurchaseForm } from "@/components/crm/AddPurchaseForm";
 import { ImportCSVForm } from "@/components/crm/ImportCSVForm";
+import { BulkWhatsAppDialog } from "@/components/crm/BulkWhatsAppDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRangeFilter, DateRangeType, getDateRange, getDateRangeLabel } from "@/components/crm/DateRangeFilter";
@@ -126,6 +127,9 @@ const Index = () => {
             salesTeamMembers={salesTeamMembers}
             canAssignCustomers={isAdminOrAccounts}
           />
+          {isAdminOrAccounts && (
+            <BulkWhatsAppDialog customers={customers} />
+          )}
         </section>
 
         {/* Tabs for Dashboard / All Customers */}
@@ -146,7 +150,11 @@ const Index = () => {
               </div>
               <div className="grid gap-4 lg:grid-cols-2">
                 {segmentStats.map((segment) => (
-                  <SegmentCard key={segment.id} segment={segment} />
+                  <SegmentCard 
+                    key={segment.id} 
+                    segment={segment} 
+                    allCustomers={customers}
+                  />
                 ))}
               </div>
             </section>
