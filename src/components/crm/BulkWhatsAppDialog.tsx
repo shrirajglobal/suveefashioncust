@@ -22,36 +22,36 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-// Pre-defined message templates for each segment
+// Pre-defined message templates for each segment (without emojis for better compatibility)
 const MESSAGE_TEMPLATES: Record<string, string> = {
-  "30d": `Hi {name}! 👋
+  "30d": `Hi {name}!
 
 It's been a while since your last visit to Suvee Fashion. We miss you!
 
 Check out our latest collection - we have some amazing new arrivals that we think you'll love.
 
-Visit us soon! 🛍️`,
-  "3m": `Hello {name}! 🌟
+Visit us soon!`,
+  "3m": `Hello {name}!
 
 We noticed you haven't visited Suvee Fashion in the past few months. We'd love to see you again!
 
 We have exciting new styles and exclusive offers waiting for you.
 
-Come visit us soon! ❤️`,
+Come visit us soon!`,
   "6m": `Dear {name},
 
 It's been 6 months since we last saw you at Suvee Fashion! We hope you're doing well.
 
 We've got fresh new collections and special deals that we'd love to show you.
 
-Looking forward to welcoming you back! 🙏`,
-  "12m": `Hi {name}! 
+Looking forward to welcoming you back!`,
+  "12m": `Hi {name}!
 
 It's been over a year since your last visit to Suvee Fashion. We truly miss having you as our valued customer!
 
 A lot has changed - new collections, better styles, and amazing deals await you.
 
-We'd be honored to serve you again. Visit us anytime! 🌺`,
+We'd be honored to serve you again. Visit us anytime!`,
 };
 
 // Segment options for the dropdown
@@ -107,11 +107,16 @@ export function BulkWhatsAppDialog({
   const getWhatsAppLink = (customer: CustomerWithPurchases) => {
     const personalizedMessage = message.replace(/{name}/g, customer.name.split(" ")[0]);
     const encodedMessage = encodeURIComponent(personalizedMessage);
+    // Remove all non-digit characters from phone number
     const phone = customer.mobileNo.replace(/\D/g, "");
-    return `https://wa.me/${phone}?text=${encodedMessage}`;
+    // Use wa.me which is the official WhatsApp link format
+    const link = `https://wa.me/${phone}?text=${encodedMessage}`;
+    console.log("WhatsApp link generated:", link);
+    return link;
   };
 
   const handleSendClick = (customerId: string, link: string) => {
+    console.log("Opening WhatsApp link:", link);
     window.open(link, "_blank");
     setSentCustomers(prev => new Set(prev).add(customerId));
   };
