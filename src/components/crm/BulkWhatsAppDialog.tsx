@@ -109,8 +109,8 @@ export function BulkWhatsAppDialog({
     const encodedMessage = encodeURIComponent(personalizedMessage);
     // Remove all non-digit characters from phone number
     const phone = customer.mobileNo.replace(/\D/g, "");
-    // Use wa.me which is the official WhatsApp link format
-    const link = `https://wa.me/${phone}?text=${encodedMessage}`;
+    // Use whatsapp:// protocol to open the desktop app directly
+    const link = `whatsapp://send?phone=${phone}&text=${encodedMessage}`;
     console.log("WhatsApp link generated:", link);
     return link;
   };
