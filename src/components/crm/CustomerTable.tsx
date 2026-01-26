@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc, UserCheck, Users } from "lucide-react";
+import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc, UserCheck, Users, MessageCircle } from "lucide-react";
 import { CustomerWithPurchases } from "@/types/crm";
 import { formatINR, formatDaysAgo, formatDate } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
@@ -318,13 +318,25 @@ export function CustomerTable({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <a 
-                      href={`tel:${customer.mobileNo}`}
-                      className="flex items-center gap-1 text-sm hover:text-primary transition-colors"
-                    >
-                      <Phone className="h-3 w-3 text-muted-foreground" />
-                      {customer.mobileNo}
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <a 
+                        href={`tel:${customer.mobileNo}`}
+                        className="flex items-center gap-1 text-sm hover:text-primary transition-colors"
+                        title="Call"
+                      >
+                        <Phone className="h-4 w-4" />
+                      </a>
+                      <a 
+                        href={`https://wa.me/${customer.mobileNo.replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-sm text-success hover:text-success/80 transition-colors"
+                        title="WhatsApp"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                      </a>
+                      <span className="text-sm">{customer.mobileNo}</span>
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 text-sm">
