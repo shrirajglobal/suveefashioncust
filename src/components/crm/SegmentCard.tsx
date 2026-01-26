@@ -85,12 +85,20 @@ export function SegmentCard({ segment }: SegmentCardProps) {
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <div className="space-y-1">
-                    <p className="font-medium">{customer.name}</p>
+                    <a 
+                      href={`tel:${customer.mobileNo}`}
+                      className="font-medium hover:text-primary hover:underline transition-colors"
+                    >
+                      {customer.name}
+                    </a>
                     <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
+                      <a 
+                        href={`tel:${customer.mobileNo}`}
+                        className="flex items-center gap-1 hover:text-primary transition-colors"
+                      >
                         <Phone className="h-3 w-3" />
                         {customer.mobileNo}
-                      </span>
+                      </a>
                       <span className="flex items-center gap-1">
                         <MapPin className="h-3 w-3" />
                         {customer.city}

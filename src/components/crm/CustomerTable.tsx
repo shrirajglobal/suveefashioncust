@@ -306,7 +306,12 @@ export function CustomerTable({
                   )}
                   <TableCell>
                     <div>
-                      <p className="font-medium">{customer.name}</p>
+                      <a 
+                        href={`tel:${customer.mobileNo}`}
+                        className="font-medium hover:text-primary hover:underline transition-colors"
+                      >
+                        {customer.name}
+                      </a>
                       <p className="text-xs text-muted-foreground">
                         {customer.purchases.length} purchase{customer.purchases.length !== 1 ? "s" : ""}
                       </p>
