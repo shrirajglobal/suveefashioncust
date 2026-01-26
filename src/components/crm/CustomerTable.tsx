@@ -407,17 +407,14 @@ export function CustomerTable({
                     <div className="flex items-center gap-1">
                       {isAdminOrAccounts && onToggleDND && (
                         <Button
-                          variant="ghost"
-                          size="icon"
+                          variant={customer.dnd ? "destructive" : "outline"}
+                          size="sm"
                           onClick={() => onToggleDND(customer.id, !customer.dnd)}
                           title={customer.dnd ? "Remove DND" : "Mark as DND"}
+                          className="h-8 px-2"
                         >
-                          <PhoneOff className={cn(
-                            "h-4 w-4",
-                            customer.dnd 
-                              ? "text-destructive" 
-                              : "text-muted-foreground hover:text-destructive"
-                          )} />
+                          <PhoneOff className="h-4 w-4 mr-1" />
+                          <span className="text-xs">{customer.dnd ? "DND" : "DND"}</span>
                         </Button>
                       )}
                       <AlertDialog>
