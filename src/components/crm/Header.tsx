@@ -51,7 +51,7 @@ export const Header = memo(function Header() {
                 {getRoleBadge()}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Track customers & purchases
+                Track customers & sales
               </p>
             </div>
           </div>

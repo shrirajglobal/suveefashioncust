@@ -433,7 +433,7 @@ export function ImportCSVForm({
     
     if (notFoundMobiles.size > 0) {
       const notFoundCount = Array.from(notFoundMobiles.values()).reduce((sum, rows) => sum + rows.length, 0);
-      allErrors.push(`⚠️ ${notFoundCount} purchases skipped - Customer mobile not found:`);
+      allErrors.push(`⚠️ ${notFoundCount} sales skipped - Customer mobile not found:`);
       
       Array.from(notFoundMobiles.entries()).slice(0, 10).forEach(([mobile, rows]) => {
         allErrors.push(`   • ${mobile} (${rows.length} transactions)`);
@@ -459,7 +459,7 @@ export function ImportCSVForm({
     if (validPurchases.length === 0) {
       setResult({
         success: false,
-        message: `No valid purchases imported out of ${rows.length} rows.`,
+        message: `No valid sales imported out of ${rows.length} rows.`,
         errors: allErrors,
         skippedCount: totalSkipped,
       });
@@ -469,8 +469,8 @@ export function ImportCSVForm({
     const importResult = await onImportPurchases(validPurchases, customerLookup, overwrite);
     
     const messages: string[] = [];
-    if (importResult.imported > 0) messages.push(`${importResult.imported} new purchases added`);
-    if (importResult.updated > 0) messages.push(`${importResult.updated} purchases updated`);
+    if (importResult.imported > 0) messages.push(`${importResult.imported} new sales added`);
+    if (importResult.updated > 0) messages.push(`${importResult.updated} sales updated`);
     if (importResult.skipped > 0) messages.push(`${importResult.skipped} duplicates skipped`);
 
     // Combine all errors
@@ -513,14 +513,14 @@ export function ImportCSVForm({
               Import from CSV
             </DialogTitle>
             <DialogDescription>
-              Upload a CSV file to bulk import customers or purchases
+              Upload a CSV file to bulk import customers or sales
             </DialogDescription>
           </DialogHeader>
 
           <Tabs defaultValue="customers" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="customers">Customers</TabsTrigger>
-              <TabsTrigger value="purchases">Purchases</TabsTrigger>
+              <TabsTrigger value="purchases">Sales</TabsTrigger>
             </TabsList>
 
             <TabsContent value="customers" className="space-y-4 pt-4">
@@ -651,7 +651,7 @@ export function ImportCSVForm({
                 </>
               ) : (
                 <>
-                  Found <strong>{duplicateDialog?.duplicateCount}</strong> purchase(s) that appear to be duplicates (same customer, amount, and date).
+                  Found <strong>{duplicateDialog?.duplicateCount}</strong> sale(s) that appear to be duplicates (same customer, amount, and date).
                 </>
               )}
             </DialogDescription>

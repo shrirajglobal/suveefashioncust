@@ -125,7 +125,7 @@ export const CustomerTable = memo(function CustomerTable({
   });
 
   const getUrgencyBadge = useCallback((days: number | null) => {
-    if (days === null) return <Badge variant="secondary">No Purchases</Badge>;
+    if (days === null) return <Badge variant="secondary">No Sales</Badge>;
     if (days <= 7) return <Badge className="bg-success">Active</Badge>;
     if (days <= 15) return <Badge className="bg-warning">Recent</Badge>;
     if (days <= 30) return <Badge className="bg-urgent">Follow Up</Badge>;
@@ -275,7 +275,7 @@ export const CustomerTable = memo(function CustomerTable({
                 onClick={() => handleSort("totalPurchaseAmount")}
               >
                 <div className="flex items-center justify-end gap-2">
-                  Total Purchases
+                  Total Sales
                   <SortIcon field="totalPurchaseAmount" />
                 </div>
               </TableHead>
@@ -284,7 +284,7 @@ export const CustomerTable = memo(function CustomerTable({
                 onClick={() => handleSort("daysSinceLastPurchase")}
               >
                 <div className="flex items-center gap-2">
-                  Last Purchase
+                  Last Sale
                   <SortIcon field="daysSinceLastPurchase" />
                 </div>
               </TableHead>
@@ -322,7 +322,7 @@ export const CustomerTable = memo(function CustomerTable({
                         {customer.name}
                       </a>
                       <p className="text-xs text-muted-foreground">
-                        {customer.purchases.length} purchase{customer.purchases.length !== 1 ? "s" : ""}
+                        {customer.purchases.length} sale{customer.purchases.length !== 1 ? "s" : ""}
                       </p>
                     </div>
                   </TableCell>
@@ -433,7 +433,7 @@ export const CustomerTable = memo(function CustomerTable({
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete Customer</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Are you sure you want to delete {customer.name}? This will also delete all their purchase records. This action cannot be undone.
+                              Are you sure you want to delete {customer.name}? This will also delete all their sales records. This action cannot be undone.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>

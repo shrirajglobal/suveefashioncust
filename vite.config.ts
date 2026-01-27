@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => ({
       manifest: {
         name: "Suvee Fashion CRM",
         short_name: "Suvee CRM",
-        description: "Customer CRM for Suvee Fashion - Track customers, purchases, and send WhatsApp messages",
+        description: "Customer CRM for Suvee Fashion - Track customers, sales, and send WhatsApp messages",
         theme_color: "#7c3aed",
         background_color: "#ffffff",
         display: "standalone",
