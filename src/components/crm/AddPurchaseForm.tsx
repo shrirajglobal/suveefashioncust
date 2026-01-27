@@ -77,8 +77,8 @@ export function AddPurchaseForm({ customers, onSubmit }: AddPurchaseFormProps) {
     });
     setOpen(false);
     toast({
-      title: "Purchase Recorded",
-      description: `₹${amount.toLocaleString("en-IN")} purchase has been recorded`,
+      title: "Sale Recorded",
+      description: `₹${amount.toLocaleString("en-IN")} sale has been recorded`,
     });
   };
 
@@ -87,14 +87,14 @@ export function AddPurchaseForm({ customers, onSubmit }: AddPurchaseFormProps) {
       <DialogTrigger asChild>
         <Button variant="outline" className="gap-2">
           <ShoppingCart className="h-4 w-4" />
-          Add Purchase
+          Add Sale
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Record New Purchase</DialogTitle>
+          <DialogTitle>Record New Sale</DialogTitle>
           <DialogDescription>
-            Add a new purchase for an existing customer
+            Add a new sale for an existing customer
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -131,7 +131,7 @@ export function AddPurchaseForm({ customers, onSubmit }: AddPurchaseFormProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="date">Purchase Date</Label>
+            <Label htmlFor="date">Sale Date</Label>
             <Input
               id="date"
               type="date"
@@ -160,7 +160,7 @@ export function AddPurchaseForm({ customers, onSubmit }: AddPurchaseFormProps) {
             >
               Cancel
             </Button>
-            <Button type="submit">Record Purchase</Button>
+            <Button type="submit">Record Sale</Button>
           </div>
         </form>
       </DialogContent>

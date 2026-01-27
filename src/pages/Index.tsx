@@ -28,7 +28,7 @@ const StatsSection = memo(({ stats, dateRangeLabel }: {
       description="Registered customers"
     />
     <StatCard
-      title="Total Purchases"
+      title="Total Sales"
       value={stats.totalPurchases}
       icon={ShoppingBag}
       description={dateRangeLabel}
@@ -40,7 +40,7 @@ const StatsSection = memo(({ stats, dateRangeLabel }: {
       description={dateRangeLabel}
     />
     <StatCard
-      title="Avg. Purchase"
+      title="Avg. Sale"
       value={formatINR(stats.avgPurchaseValue)}
       icon={TrendingUp}
       description="Per transaction"
@@ -188,9 +188,9 @@ const Index = () => {
             <section>
               <div className="mb-4">
                 <h2 className="text-xl font-semibold">Customer Segmentation</h2>
-                <p className="text-sm text-muted-foreground">
-                  Customers grouped by their last purchase date
-                </p>
+              <p className="text-sm text-muted-foreground">
+                Customers grouped by their last sale date
+              </p>
               </div>
               <div className="grid gap-4 lg:grid-cols-2">
                 {segmentStats.map((segment) => (

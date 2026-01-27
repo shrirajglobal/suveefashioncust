@@ -16,7 +16,7 @@ export function formatDate(date: Date): string {
 }
 
 export function formatDaysAgo(days: number | null): string {
-  if (days === null) return "No purchases";
+  if (days === null) return "No sales";
   if (days === 0) return "Today";
   if (days === 1) return "Yesterday";
   if (days < 7) return `${days} days ago`;

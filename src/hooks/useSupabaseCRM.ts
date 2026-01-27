@@ -267,13 +267,13 @@ export function useSupabaseCRM() {
       .single();
 
     if (error) {
-      toast.error("Failed to add purchase: " + error.message);
+      toast.error("Failed to add sale: " + error.message);
       return null;
     }
 
     const mapped = mapDBPurchase(newPurchase);
     setPurchases((prev) => [...prev, mapped]);
-    toast.success("Purchase added successfully!");
+    toast.success("Sale added successfully!");
     return mapped;
   };
 
@@ -282,12 +282,12 @@ export function useSupabaseCRM() {
     const { error } = await supabase.from("transactions").delete().eq("id", id);
 
     if (error) {
-      toast.error("Failed to delete purchase: " + error.message);
+      toast.error("Failed to delete sale: " + error.message);
       return;
     }
 
     setPurchases((prev) => prev.filter((p) => p.id !== id));
-    toast.success("Purchase deleted!");
+    toast.success("Sale deleted!");
   };
 
   // Get customer by ID
@@ -395,7 +395,7 @@ export function useSupabaseCRM() {
             .eq("id", existingId);
 
           if (error) {
-            errors.push(`Failed to update purchase for ${data.customerMobile}: ${error.message}`);
+            errors.push(`Failed to update sale for ${data.customerMobile}: ${error.message}`);
           } else {
             updated++;
           }
@@ -415,7 +415,7 @@ export function useSupabaseCRM() {
           // Add to existing signatures to prevent duplicate inserts within the same batch
           existingSignatures.set(signature, result.id);
         } else {
-          errors.push(`Failed to add purchase for ${data.customerMobile}`);
+          errors.push(`Failed to add sale for ${data.customerMobile}`);
         }
       }
     }
