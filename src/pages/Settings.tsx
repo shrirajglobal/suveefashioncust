@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Lock, Users, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface SalesUser {
   user_id: string;
@@ -17,7 +18,10 @@ interface SalesUser {
   role: string;
 }
 
+type SettingsSection = "password" | "reassign";
+
 export default function Settings() {
+  const [activeSection, setActiveSection] = useState<SettingsSection>("password");
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -48,7 +52,6 @@ export default function Settings() {
 
   const fetchSalesUsers = async () => {
     try {
-      // Get all users with their roles
       const [profilesRes, rolesRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name"),
         supabase.from("user_roles").select("user_id, role"),
@@ -60,7 +63,6 @@ export default function Settings() {
       const profiles = profilesRes.data || [];
       const roles = rolesRes.data || [];
 
-      // Map profiles with roles (include all users who could have customers assigned)
       const usersWithRoles = profiles.map((profile) => {
         const userRole = roles.find((r) => r.user_id === profile.user_id);
         return {
@@ -107,7 +109,6 @@ export default function Settings() {
     setIsLoading(true);
 
     try {
-      // First verify old password by attempting to sign in
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: user?.email || "",
         password: oldPassword,
@@ -119,7 +120,6 @@ export default function Settings() {
         return;
       }
 
-      // Update to new password
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
@@ -183,6 +183,11 @@ export default function Settings() {
     return labels[role] || role;
   };
 
+  const menuItems = [
+    { id: "password" as SettingsSection, label: "Reset Password", icon: Lock, show: true },
+    { id: "reassign" as SettingsSection, label: "Reassign Customers", icon: ArrowRightLeft, show: userRole === "super_admin" },
+  ].filter(item => item.show);
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card shadow-sm">
@@ -200,144 +205,168 @@ export default function Settings() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <div className="max-w-md mx-auto space-y-6">
-          {/* Password Change Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Lock className="h-5 w-5" />
-                Change Password
-              </CardTitle>
-              <CardDescription>
-                Update your password to keep your account secure
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handlePasswordChange} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="oldPassword">Current Password</Label>
-                  <Input
-                    id="oldPassword"
-                    type="password"
-                    placeholder="Enter current password"
-                    value={oldPassword}
-                    onChange={(e) => setOldPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="newPassword">New Password</Label>
-                  <Input
-                    id="newPassword"
-                    type="password"
-                    placeholder="Enter new password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    placeholder="Confirm new password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Updating..." : "Update Password"}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          {/* Super Admin: Bulk Customer Reassignment */}
-          {userRole === "super_admin" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ArrowRightLeft className="h-5 w-5" />
-                  Bulk Customer Reassignment
-                </CardTitle>
-                <CardDescription>
-                  Reassign all customers from one user to another
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fromUser">From User</Label>
-                  <Select value={fromUser} onValueChange={setFromUser}>
-                    <SelectTrigger id="fromUser" className="bg-background">
-                      <SelectValue placeholder="Select source user" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background border shadow-lg z-50">
-                      {salesUsers.map((u) => (
-                        <SelectItem key={u.user_id} value={u.user_id}>
-                          {u.full_name} ({getRoleLabel(u.role)})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {fromUser && (
-                    <p className="text-sm text-muted-foreground">
-                      <Users className="h-3 w-3 inline mr-1" />
-                      {customerCount} customer{customerCount !== 1 ? "s" : ""} assigned
-                    </p>
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Left Sidebar Menu */}
+          <aside className="w-full md:w-64 shrink-0">
+            <nav className="space-y-1">
+              {menuItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveSection(item.id)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors",
+                    activeSection === item.id
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted text-foreground"
                   )}
-                </div>
+                >
+                  <item.icon className="h-5 w-5" />
+                  <span className="font-medium">{item.label}</span>
+                </button>
+              ))}
+            </nav>
+          </aside>
 
-                <div className="space-y-2">
-                  <Label htmlFor="toUser">To User</Label>
-                  <Select value={toUser} onValueChange={setToUser}>
-                    <SelectTrigger id="toUser" className="bg-background">
-                      <SelectValue placeholder="Select target user" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background border shadow-lg z-50">
-                      {salesUsers
-                        .filter((u) => u.user_id !== fromUser)
-                        .map((u) => (
+          {/* Right Content Area */}
+          <div className="flex-1 max-w-xl">
+            {activeSection === "password" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Lock className="h-5 w-5" />
+                    Change Password
+                  </CardTitle>
+                  <CardDescription>
+                    Update your password to keep your account secure
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handlePasswordChange} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="oldPassword">Current Password</Label>
+                      <Input
+                        id="oldPassword"
+                        type="password"
+                        placeholder="Enter current password"
+                        value={oldPassword}
+                        onChange={(e) => setOldPassword(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="newPassword">New Password</Label>
+                      <Input
+                        id="newPassword"
+                        type="password"
+                        placeholder="Enter new password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        placeholder="Confirm new password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                      {isLoading ? "Updating..." : "Update Password"}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+
+            {activeSection === "reassign" && userRole === "super_admin" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ArrowRightLeft className="h-5 w-5" />
+                    Bulk Customer Reassignment
+                  </CardTitle>
+                  <CardDescription>
+                    Reassign all customers from one user to another
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="fromUser">From User</Label>
+                    <Select value={fromUser} onValueChange={setFromUser}>
+                      <SelectTrigger id="fromUser" className="bg-background">
+                        <SelectValue placeholder="Select source user" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background border shadow-lg z-50">
+                        {salesUsers.map((u) => (
                           <SelectItem key={u.user_id} value={u.user_id}>
                             {u.full_name} ({getRoleLabel(u.role)})
                           </SelectItem>
                         ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                      </SelectContent>
+                    </Select>
+                    {fromUser && (
+                      <p className="text-sm text-muted-foreground">
+                        <Users className="h-3 w-3 inline mr-1" />
+                        {customerCount} customer{customerCount !== 1 ? "s" : ""} assigned
+                      </p>
+                    )}
+                  </div>
 
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      className="w-full"
-                      disabled={!fromUser || !toUser || fromUser === toUser || customerCount === 0 || isReassigning}
-                    >
-                      {isReassigning ? "Reassigning..." : `Reassign ${customerCount} Customer${customerCount !== 1 ? "s" : ""}`}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent className="bg-background">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Confirm Bulk Reassignment</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        You are about to reassign <strong>{customerCount} customer{customerCount !== 1 ? "s" : ""}</strong> from{" "}
-                        <strong>{salesUsers.find((u) => u.user_id === fromUser)?.full_name}</strong> to{" "}
-                        <strong>{salesUsers.find((u) => u.user_id === toUser)?.full_name}</strong>.
-                        <br /><br />
-                        This action cannot be undone. Are you sure you want to proceed?
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleBulkReassign}>
-                        Yes, Reassign All
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </CardContent>
-            </Card>
-          )}
+                  <div className="space-y-2">
+                    <Label htmlFor="toUser">To User</Label>
+                    <Select value={toUser} onValueChange={setToUser}>
+                      <SelectTrigger id="toUser" className="bg-background">
+                        <SelectValue placeholder="Select target user" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background border shadow-lg z-50">
+                        {salesUsers
+                          .filter((u) => u.user_id !== fromUser)
+                          .map((u) => (
+                            <SelectItem key={u.user_id} value={u.user_id}>
+                              {u.full_name} ({getRoleLabel(u.role)})
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        className="w-full"
+                        disabled={!fromUser || !toUser || fromUser === toUser || customerCount === 0 || isReassigning}
+                      >
+                        {isReassigning ? "Reassigning..." : `Reassign ${customerCount} Customer${customerCount !== 1 ? "s" : ""}`}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="bg-background">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Confirm Bulk Reassignment</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          You are about to reassign <strong>{customerCount} customer{customerCount !== 1 ? "s" : ""}</strong> from{" "}
+                          <strong>{salesUsers.find((u) => u.user_id === fromUser)?.full_name}</strong> to{" "}
+                          <strong>{salesUsers.find((u) => u.user_id === toUser)?.full_name}</strong>.
+                          <br /><br />
+                          This action cannot be undone. Are you sure you want to proceed?
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleBulkReassign}>
+                          Yes, Reassign All
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
       </main>
     </div>
