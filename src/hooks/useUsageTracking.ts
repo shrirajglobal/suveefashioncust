@@ -1,22 +1,27 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
+// Prevent duplicate app_open events when the hook is mounted in multiple places
+// within the same SPA session (e.g., App + Index).
+const loggedAppOpenForUsers = new Set<string>();
+
 export function useUsageTracking() {
   const { user } = useAuth();
-  const hasLoggedAppOpen = useRef(false);
 
   // Log app open event (once per session)
   useEffect(() => {
-    if (user && !hasLoggedAppOpen.current) {
-      hasLoggedAppOpen.current = true;
+    if (!user) return;
+    if (loggedAppOpenForUsers.has(user.id)) return;
+
+    loggedAppOpenForUsers.add(user.id);
+
       supabase
         .from("usage_events")
         .insert({ user_id: user.id, event_type: "app_open" })
         .then(({ error }) => {
           if (error) console.error("Failed to log app open:", error);
         });
-    }
   }, [user]);
 
   // Log phone click event
