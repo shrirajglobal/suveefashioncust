@@ -186,7 +186,7 @@ export default function Settings() {
   const menuItems = [
     { id: "password" as SettingsSection, label: "Reset Password", icon: Lock, show: true, isLink: false },
     { id: "reassign" as SettingsSection, label: "Reassign Customers", icon: ArrowRightLeft, show: userRole === "super_admin", isLink: false },
-    { id: "users" as SettingsSection, label: "Manage Users", icon: UserCog, show: userRole === "super_admin", isLink: true, href: "/user-management" },
+    { id: "users" as SettingsSection, label: "Manage Users", icon: UserCog, show: userRole === "super_admin", isLink: true, href: "/users" },
   ].filter(item => item.show);
 
   return (
