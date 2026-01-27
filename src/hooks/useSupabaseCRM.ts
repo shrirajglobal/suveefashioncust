@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Customer, Purchase, CustomerWithPurchases, SEGMENTS, SegmentPeriod } from "@/types/crm";
@@ -57,11 +57,15 @@ export function useSupabaseCRM() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [salesTeamMembers, setSalesTeamMembers] = useState<Array<{ id: string; name: string }>>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const hasLoadedOnceRef = useRef(false);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
-    
-    setIsLoading(true);
+
+    const firstLoad = !hasLoadedOnceRef.current;
+    if (firstLoad) setIsLoading(true);
+    else setIsRefreshing(true);
     try {
       const [customersRes, transactionsRes, profilesRes, rolesRes] = await Promise.all([
         supabase.from("customers").select("*"),
@@ -90,10 +94,13 @@ export function useSupabaseCRM() {
 
       setCustomers((customersRes.data || []).map((c) => mapDBCustomer(c, profilesMap)));
       setPurchases((transactionsRes.data || []).map(mapDBPurchase));
+
+      hasLoadedOnceRef.current = true;
     } catch (error: any) {
       toast.error("Failed to fetch data: " + error.message);
     } finally {
-      setIsLoading(false);
+      if (firstLoad) setIsLoading(false);
+      else setIsRefreshing(false);
     }
   }, [user]);
 
@@ -481,6 +488,7 @@ export function useSupabaseCRM() {
     segmentStats,
     stats,
     isLoading,
+    isRefreshing,
     salesTeamMembers,
     addCustomer,
     updateCustomer,
