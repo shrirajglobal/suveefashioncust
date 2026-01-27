@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, memo } from "react";
+import { useState, useMemo, useCallback, useEffect, memo } from "react";
 import { Users, ShoppingBag, IndianRupee, TrendingUp } from "lucide-react";
 import { useSupabaseCRM } from "@/hooks/useSupabaseCRM";
 import { useAuth } from "@/contexts/AuthContext";
@@ -69,7 +69,13 @@ LoadingSkeleton.displayName = "LoadingSkeleton";
 const Index = () => {
   const { isAdminOrAccounts } = useAuth();
   const [dateRange, setDateRange] = useState<DateRangeType>("month");
-  const [activeTab, setActiveTab] = useState<string>("dashboard");
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    try {
+      return localStorage.getItem("crm:index:activeTab") ?? "dashboard";
+    } catch {
+      return "dashboard";
+    }
+  });
   
   const {
     customers,
@@ -119,6 +125,15 @@ const Index = () => {
   const customerLookup = useMemo(() => getCustomerMobileLookup(), [customers]);
   const existingMobiles = useMemo(() => getExistingCustomerMobiles(), [customers]);
   const existingPurchasesList = useMemo(() => getExistingPurchases(), [purchases]);
+
+  // Persist tab so background refresh / remount never snaps back to Dashboard
+  useEffect(() => {
+    try {
+      localStorage.setItem("crm:index:activeTab", activeTab);
+    } catch {
+      // ignore
+    }
+  }, [activeTab]);
 
   if (isLoading) {
     return <LoadingSkeleton />;
