@@ -125,6 +125,17 @@ const Index = () => {
     return new Set(filteredCustomers.map((c) => c.id));
   }, [filteredCustomers]);
 
+  // Map customer ID to assigned salesman for chart
+  const customerAssignmentMap = useMemo(() => {
+    const map = new Map<string, string>();
+    customers.forEach((c) => {
+      if (c.assignedTo) {
+        map.set(c.id, c.assignedTo);
+      }
+    });
+    return map;
+  }, [customers]);
+
   // Filter purchases based on selected date range and salesman - optimized with useMemo
   const filteredStats = useMemo(() => {
     const { start, end } = getDateRange(dateRange);
@@ -290,6 +301,8 @@ const Index = () => {
           filteredCustomerIds={filteredCustomerIds}
           selectedSalesman={selectedSalesman}
           salesmanName={salesTeamMembers.find(m => m.id === selectedSalesman)?.name}
+          salesTeamMembers={salesTeamMembers}
+          customerAssignments={customerAssignmentMap}
         />
 
         {/* Action Buttons */}
