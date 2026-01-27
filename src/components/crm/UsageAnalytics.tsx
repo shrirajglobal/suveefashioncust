@@ -1,10 +1,17 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Phone, LogIn, Calendar, Users } from "lucide-react";
+import { Phone, LogIn, Calendar, Users, Filter } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -37,6 +44,7 @@ export function UsageAnalytics() {
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
+  const [selectedSalesman, setSelectedSalesman] = useState<string>("all");
   const [events, setEvents] = useState<UsageEvent[]>([]);
   const [salesUsers, setSalesUsers] = useState<SalesUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -94,12 +102,20 @@ export function UsageAnalytics() {
     fetchData();
   }, [selectedDate]);
 
+  // Filter sales users based on selection
+  const filteredSalesUsers = useMemo(() => {
+    if (selectedSalesman === "all") {
+      return salesUsers;
+    }
+    return salesUsers.filter((u) => u.userId === selectedSalesman);
+  }, [salesUsers, selectedSalesman]);
+
   // Aggregate stats by salesperson (show sales team even if they have 0 activity)
   const userStats = useMemo(() => {
     const statsMap = new Map<string, UserStats>();
 
-    // Seed with all sales users so they appear with zeros
-    salesUsers.forEach((u) => {
+    // Seed with filtered sales users so they appear with zeros
+    filteredSalesUsers.forEach((u) => {
       statsMap.set(u.userId, {
         userId: u.userId,
         userName: u.userName,
@@ -109,7 +125,7 @@ export function UsageAnalytics() {
     });
 
     events.forEach((event) => {
-      // Only count events for sales team users
+      // Only count events for filtered sales team users
       const existing = statsMap.get(event.user_id);
       if (!existing) return;
 
@@ -123,7 +139,7 @@ export function UsageAnalytics() {
     return Array.from(statsMap.values()).sort((a, b) => 
       (b.phoneClicks + b.appOpens) - (a.phoneClicks + a.appOpens)
     );
-  }, [events, salesUsers]);
+  }, [events, filteredSalesUsers]);
 
   const activeSalesmenCount = useMemo(
     () => userStats.filter((u) => u.phoneClicks + u.appOpens > 0).length,
@@ -156,19 +172,41 @@ export function UsageAnalytics() {
 
   return (
     <div className="space-y-6">
-      {/* Date Picker */}
-      <div className="flex items-center gap-3">
-        <Label htmlFor="date" className="flex items-center gap-2">
-          <Calendar className="h-4 w-4" />
-          Select Date
-        </Label>
-        <Input
-          id="date"
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="w-auto"
-        />
+      {/* Filters */}
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="flex items-center gap-3">
+          <Label htmlFor="date" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Date
+          </Label>
+          <Input
+            id="date"
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="w-auto"
+          />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Label htmlFor="salesman" className="flex items-center gap-2">
+            <Filter className="h-4 w-4" />
+            Salesman
+          </Label>
+          <Select value={selectedSalesman} onValueChange={setSelectedSalesman}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="All Salesmen" />
+            </SelectTrigger>
+            <SelectContent className="bg-background border shadow-md z-50">
+              <SelectItem value="all">All Salesmen</SelectItem>
+              {salesUsers.map((user) => (
+                <SelectItem key={user.userId} value={user.userId}>
+                  {user.userName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Summary Cards */}
