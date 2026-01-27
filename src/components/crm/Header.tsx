@@ -1,5 +1,5 @@
 import { memo, useCallback } from "react";
-import { Users, LogOut, Shield, Settings } from "lucide-react";
+import { Users, LogOut, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,6 @@ export const Header = memo(function Header() {
 
   const handleHomeClick = useCallback(() => {
     navigate("/");
-  }, [navigate]);
-
-  const handleUsersClick = useCallback(() => {
-    navigate("/users");
   }, [navigate]);
 
   const handleSettingsClick = useCallback(() => {
@@ -61,17 +57,6 @@ export const Header = memo(function Header() {
           </div>
           {user && (
             <div className="flex items-center gap-3">
-              {userRole === "super_admin" && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleUsersClick}
-                  className="hidden sm:flex"
-                >
-                  <Shield className="h-4 w-4 mr-1" />
-                  Manage Users
-                </Button>
-              )}
               <span className="text-sm text-muted-foreground hidden sm:inline">
                 {user.email}
               </span>
