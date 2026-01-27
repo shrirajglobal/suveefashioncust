@@ -13,6 +13,7 @@ import { AddCustomerForm } from "@/components/crm/AddCustomerForm";
 import { AddPurchaseForm } from "@/components/crm/AddPurchaseForm";
 import { ImportCSVForm } from "@/components/crm/ImportCSVForm";
 import { BulkWhatsAppDialog } from "@/components/crm/BulkWhatsAppDialog";
+import { RevenueComparisonChart } from "@/components/crm/RevenueComparisonChart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
@@ -282,6 +283,14 @@ const Index = () => {
 
         {/* Stats Overview - Memoized */}
         <StatsSection stats={filteredStats} dateRangeLabel={dateRangeLabel} />
+
+        {/* Revenue Comparison Chart - Visible for all users */}
+        <RevenueComparisonChart
+          purchases={purchases}
+          filteredCustomerIds={filteredCustomerIds}
+          selectedSalesman={selectedSalesman}
+          salesmanName={salesTeamMembers.find(m => m.id === selectedSalesman)?.name}
+        />
 
         {/* Action Buttons */}
         <section className="flex flex-wrap gap-3">
