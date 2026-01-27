@@ -27,17 +27,20 @@ interface SegmentCardProps {
     customers: CustomerWithPurchases[];
   };
   allCustomers?: CustomerWithPurchases[];
+  onPhoneClick?: () => void;
 }
 
 // Memoized customer row component
 const CustomerRow = memo(function CustomerRow({ 
   customer, 
   isAdminOrAccounts,
-  index 
+  index,
+  onPhoneClick,
 }: { 
   customer: CustomerWithPurchases; 
   isAdminOrAccounts: boolean;
   index: number;
+  onPhoneClick?: () => void;
 }) {
   return (
     <div
@@ -67,6 +70,7 @@ const CustomerRow = memo(function CustomerRow({
                   href={`tel:${customer.mobileNo}`}
                   className="flex items-center gap-1 hover:text-primary transition-colors"
                   title="Call"
+                  onClick={onPhoneClick}
                 >
                   <Phone className="h-4 w-4" />
                 </a>
@@ -105,7 +109,7 @@ const CustomerRow = memo(function CustomerRow({
   );
 });
 
-export const SegmentCard = memo(function SegmentCard({ segment, allCustomers }: SegmentCardProps) {
+export const SegmentCard = memo(function SegmentCard({ segment, allCustomers, onPhoneClick }: SegmentCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { isAdminOrAccounts } = useAuth();
   
@@ -201,6 +205,7 @@ export const SegmentCard = memo(function SegmentCard({ segment, allCustomers }: 
                   customer={customer} 
                   isAdminOrAccounts={isAdminOrAccounts}
                   index={index}
+                  onPhoneClick={onPhoneClick}
                 />
               ))}
             </div>

@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect, memo } from "react";
 import { Users, ShoppingBag, IndianRupee, TrendingUp } from "lucide-react";
 import { useSupabaseCRM } from "@/hooks/useSupabaseCRM";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUsageTracking } from "@/hooks/useUsageTracking";
 import { formatINR } from "@/lib/formatters";
 import { Header } from "@/components/crm/Header";
 import { StatCard } from "@/components/crm/StatCard";
@@ -68,6 +69,7 @@ LoadingSkeleton.displayName = "LoadingSkeleton";
 
 const Index = () => {
   const { isAdminOrAccounts } = useAuth();
+  const { logPhoneClick } = useUsageTracking();
   const [dateRange, setDateRange] = useState<DateRangeType>("month");
   const [activeTab, setActiveTab] = useState<string>(() => {
     try {
@@ -198,6 +200,7 @@ const Index = () => {
                     key={segment.id} 
                     segment={segment} 
                     allCustomers={customers}
+                    onPhoneClick={logPhoneClick}
                   />
                 ))}
               </div>
@@ -219,6 +222,7 @@ const Index = () => {
                 onAssignCustomer={assignCustomer}
                 onBulkAssign={bulkAssignCustomers}
                 onToggleDND={toggleDND}
+                onPhoneClick={logPhoneClick}
               />
             </section>
           </TabsContent>

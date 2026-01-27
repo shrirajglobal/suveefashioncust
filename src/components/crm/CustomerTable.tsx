@@ -43,6 +43,7 @@ interface CustomerTableProps {
   onAssignCustomer?: (customerId: string, salesUserId: string | null) => Promise<boolean>;
   onBulkAssign?: (customerIds: string[], salesUserId: string | null) => Promise<boolean>;
   onToggleDND?: (customerId: string, dndStatus: boolean) => Promise<boolean>;
+  onPhoneClick?: () => void;
 }
 
 type SortField = "name" | "city" | "totalPurchaseAmount" | "daysSinceLastPurchase" | "assignedTo";
@@ -55,6 +56,7 @@ export const CustomerTable = memo(function CustomerTable({
   onAssignCustomer,
   onBulkAssign,
   onToggleDND,
+  onPhoneClick,
 }: CustomerTableProps) {
   const { userRole, isAdminOrAccounts } = useAuth();
   const [search, setSearch] = useState("");
@@ -338,6 +340,7 @@ export const CustomerTable = memo(function CustomerTable({
                           href={`tel:${customer.mobileNo}`}
                           className="flex items-center gap-1 text-sm hover:text-primary transition-colors"
                           title="Call"
+                          onClick={onPhoneClick}
                         >
                           <Phone className="h-4 w-4" />
                         </a>

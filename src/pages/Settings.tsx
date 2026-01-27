@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Lock, Users, ArrowRightLeft, UserCog } from "lucide-react";
+import { ArrowLeft, Lock, Users, ArrowRightLeft, UserCog, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { UsageAnalytics } from "@/components/crm/UsageAnalytics";
 
 interface SalesUser {
   user_id: string;
@@ -18,7 +19,7 @@ interface SalesUser {
   role: string;
 }
 
-type SettingsSection = "password" | "reassign" | "users";
+type SettingsSection = "password" | "reassign" | "users" | "usage";
 
 export default function Settings() {
   const [activeSection, setActiveSection] = useState<SettingsSection>("password");
@@ -186,6 +187,7 @@ export default function Settings() {
   const menuItems = [
     { id: "password" as SettingsSection, label: "Reset Password", icon: Lock, show: true, isLink: false },
     { id: "reassign" as SettingsSection, label: "Reassign Customers", icon: ArrowRightLeft, show: userRole === "super_admin", isLink: false },
+    { id: "usage" as SettingsSection, label: "Usage Analytics", icon: BarChart3, show: userRole === "super_admin", isLink: false },
     { id: "users" as SettingsSection, label: "Manage Users", icon: UserCog, show: userRole === "super_admin", isLink: true, href: "/users" },
   ].filter(item => item.show);
 
@@ -380,6 +382,12 @@ export default function Settings() {
                   </AlertDialog>
                 </CardContent>
               </Card>
+            )}
+
+            {activeSection === "usage" && userRole === "super_admin" && (
+              <div className="max-w-3xl">
+                <UsageAnalytics />
+              </div>
             )}
           </div>
         </div>
