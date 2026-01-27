@@ -28,45 +28,65 @@ interface UserStats {
   appOpens: number;
 }
 
+interface SalesUser {
+  userId: string;
+  userName: string;
+}
+
 export function UsageAnalytics() {
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
   const [events, setEvents] = useState<UsageEvent[]>([]);
-  const [profiles, setProfiles] = useState<Map<string, string>>(new Map());
+  const [salesUsers, setSalesUsers] = useState<SalesUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
 
-      // Fetch profiles for name lookup
-      const { data: profilesData } = await supabase
-        .from("profiles")
-        .select("user_id, full_name");
-
-      const profilesMap = new Map<string, string>();
-      (profilesData || []).forEach((p) => {
-        profilesMap.set(p.user_id, p.full_name);
-      });
-      setProfiles(profilesMap);
-
       // Fetch events for the selected date
       const startOfDay = `${selectedDate}T00:00:00.000Z`;
       const endOfDay = `${selectedDate}T23:59:59.999Z`;
 
-      const { data: eventsData, error } = await supabase
-        .from("usage_events")
-        .select("*")
-        .gte("created_at", startOfDay)
-        .lte("created_at", endOfDay)
-        .order("created_at", { ascending: false });
+      const [profilesRes, rolesRes, eventsRes] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name"),
+        supabase.from("user_roles").select("user_id").eq("role", "sales_team"),
+        supabase
+          .from("usage_events")
+          .select("*")
+          .gte("created_at", startOfDay)
+          .lte("created_at", endOfDay)
+          .order("created_at", { ascending: false }),
+      ]);
 
-      if (error) {
-        console.error("Failed to fetch usage events:", error);
-      } else {
-        setEvents(eventsData || []);
+      if (profilesRes.error) {
+        console.error("Failed to fetch profiles:", profilesRes.error);
       }
+      if (rolesRes.error) {
+        console.error("Failed to fetch user roles:", rolesRes.error);
+      }
+      if (eventsRes.error) {
+        console.error("Failed to fetch usage events:", eventsRes.error);
+      }
+
+      const profilesMap = new Map<string, string>();
+      (profilesRes.data || []).forEach((p) => {
+        profilesMap.set(p.user_id, p.full_name);
+      });
+
+      const salesUserIds = Array.from(
+        new Set((rolesRes.data || []).map((r) => r.user_id))
+      );
+
+      setSalesUsers(
+        salesUserIds.map((id) => ({
+          userId: id,
+          userName: profilesMap.get(id) || "Unknown User",
+        }))
+      );
+
+      setEvents(eventsRes.data || []);
 
       setIsLoading(false);
     };
@@ -74,32 +94,41 @@ export function UsageAnalytics() {
     fetchData();
   }, [selectedDate]);
 
-  // Aggregate stats by user
+  // Aggregate stats by salesperson (show sales team even if they have 0 activity)
   const userStats = useMemo(() => {
     const statsMap = new Map<string, UserStats>();
 
+    // Seed with all sales users so they appear with zeros
+    salesUsers.forEach((u) => {
+      statsMap.set(u.userId, {
+        userId: u.userId,
+        userName: u.userName,
+        phoneClicks: 0,
+        appOpens: 0,
+      });
+    });
+
     events.forEach((event) => {
+      // Only count events for sales team users
       const existing = statsMap.get(event.user_id);
-      if (existing) {
-        if (event.event_type === "phone_click") {
-          existing.phoneClicks++;
-        } else if (event.event_type === "app_open") {
-          existing.appOpens++;
-        }
-      } else {
-        statsMap.set(event.user_id, {
-          userId: event.user_id,
-          userName: profiles.get(event.user_id) || "Unknown User",
-          phoneClicks: event.event_type === "phone_click" ? 1 : 0,
-          appOpens: event.event_type === "app_open" ? 1 : 0,
-        });
+      if (!existing) return;
+
+      if (event.event_type === "phone_click") {
+        existing.phoneClicks++;
+      } else if (event.event_type === "app_open") {
+        existing.appOpens++;
       }
     });
 
     return Array.from(statsMap.values()).sort((a, b) => 
       (b.phoneClicks + b.appOpens) - (a.phoneClicks + a.appOpens)
     );
-  }, [events, profiles]);
+  }, [events, salesUsers]);
+
+  const activeSalesmenCount = useMemo(
+    () => userStats.filter((u) => u.phoneClicks + u.appOpens > 0).length,
+    [userStats]
+  );
 
   // Total stats
   const totals = useMemo(() => {
@@ -172,13 +201,13 @@ export function UsageAnalytics() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+            <CardTitle className="text-sm font-medium">Active Salesmen</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{userStats.length}</div>
+            <div className="text-2xl font-bold">{activeSalesmenCount}</div>
             <p className="text-xs text-muted-foreground">
-              Users active on this date
+              Salesmen with activity on this date
             </p>
           </CardContent>
         </Card>
@@ -190,9 +219,9 @@ export function UsageAnalytics() {
           <CardTitle className="text-lg">User Activity Breakdown</CardTitle>
         </CardHeader>
         <CardContent>
-          {userStats.length === 0 ? (
+          {salesUsers.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No activity recorded for this date
+              No salesmen found
             </div>
           ) : (
             <div className="rounded-md border">
