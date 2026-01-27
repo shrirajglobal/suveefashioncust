@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Lock, Users, ArrowRightLeft } from "lucide-react";
+import { ArrowLeft, Lock, Users, ArrowRightLeft, UserCog } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +18,7 @@ interface SalesUser {
   role: string;
 }
 
-type SettingsSection = "password" | "reassign";
+type SettingsSection = "password" | "reassign" | "users";
 
 export default function Settings() {
   const [activeSection, setActiveSection] = useState<SettingsSection>("password");
@@ -184,8 +184,9 @@ export default function Settings() {
   };
 
   const menuItems = [
-    { id: "password" as SettingsSection, label: "Reset Password", icon: Lock, show: true },
-    { id: "reassign" as SettingsSection, label: "Reassign Customers", icon: ArrowRightLeft, show: userRole === "super_admin" },
+    { id: "password" as SettingsSection, label: "Reset Password", icon: Lock, show: true, isLink: false },
+    { id: "reassign" as SettingsSection, label: "Reassign Customers", icon: ArrowRightLeft, show: userRole === "super_admin", isLink: false },
+    { id: "users" as SettingsSection, label: "Manage Users", icon: UserCog, show: userRole === "super_admin", isLink: true, href: "/user-management" },
   ].filter(item => item.show);
 
   return (
@@ -210,19 +211,33 @@ export default function Settings() {
           <aside className="w-full md:w-64 shrink-0">
             <nav className="space-y-1">
               {menuItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveSection(item.id)}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors",
-                    activeSection === item.id
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-muted text-foreground"
-                  )}
-                >
-                  <item.icon className="h-5 w-5" />
-                  <span className="font-medium">{item.label}</span>
-                </button>
+                item.isLink ? (
+                  <button
+                    key={item.id}
+                    onClick={() => navigate(item.href!)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors",
+                      "hover:bg-muted text-foreground"
+                    )}
+                  >
+                    <item.icon className="h-5 w-5" />
+                    <span className="font-medium">{item.label}</span>
+                  </button>
+                ) : (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveSection(item.id)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors",
+                      activeSection === item.id
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted text-foreground"
+                    )}
+                  >
+                    <item.icon className="h-5 w-5" />
+                    <span className="font-medium">{item.label}</span>
+                  </button>
+                )
               ))}
             </nav>
           </aside>
