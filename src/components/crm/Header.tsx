@@ -1,5 +1,5 @@
 import { memo, useCallback } from "react";
-import { Users, LogOut, Shield } from "lucide-react";
+import { Users, LogOut, Shield, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,10 @@ export const Header = memo(function Header() {
 
   const handleUsersClick = useCallback(() => {
     navigate("/users");
+  }, [navigate]);
+
+  const handleSettingsClick = useCallback(() => {
+    navigate("/settings");
   }, [navigate]);
 
   const getRoleBadge = () => {
@@ -71,6 +75,10 @@ export const Header = memo(function Header() {
               <span className="text-sm text-muted-foreground hidden sm:inline">
                 {user.email}
               </span>
+              <Button variant="ghost" size="sm" onClick={handleSettingsClick}>
+                <Settings className="h-4 w-4" />
+                <span className="hidden sm:inline ml-1">Settings</span>
+              </Button>
               <Button variant="ghost" size="sm" onClick={signOut}>
                 <LogOut className="h-4 w-4 mr-1" />
                 Logout

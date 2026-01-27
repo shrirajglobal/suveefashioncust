@@ -12,6 +12,9 @@ const Index = lazy(() => import("./pages/Index"));
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
 const UserManagement = lazy(() => import("./pages/UserManagement"));
+const Settings = lazy(() => import("./pages/Settings"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Install = lazy(() => import("./pages/Install"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -89,6 +92,14 @@ const App = () => (
                   }
                 />
                 <Route
+                  path="/settings"
+                  element={
+                    <ProtectedRoute>
+                      <Settings />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/login"
                   element={
                     <PublicRoute>
@@ -104,6 +115,15 @@ const App = () => (
                     </PublicRoute>
                   }
                 />
+                <Route
+                  path="/forgot-password"
+                  element={
+                    <PublicRoute>
+                      <ForgotPassword />
+                    </PublicRoute>
+                  }
+                />
+                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/install" element={<Install />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

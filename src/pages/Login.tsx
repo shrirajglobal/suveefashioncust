@@ -71,6 +71,11 @@ export default function Login() {
               Sign up
             </Link>
           </p>
+          <p className="mt-2 text-center">
+            <Link to="/forgot-password" className="text-sm text-muted-foreground hover:text-primary hover:underline">
+              Forgot your password?
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>
