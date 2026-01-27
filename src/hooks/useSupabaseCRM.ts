@@ -60,12 +60,15 @@ export function useSupabaseCRM() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hasLoadedOnceRef = useRef(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isInitialLoad = false) => {
     if (!user) return;
 
-    const firstLoad = !hasLoadedOnceRef.current;
-    if (firstLoad) setIsLoading(true);
-    else setIsRefreshing(true);
+    if (isInitialLoad) {
+      setIsLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+    
     try {
       const [customersRes, transactionsRes, profilesRes, rolesRes] = await Promise.all([
         supabase.from("customers").select("*"),
@@ -99,13 +102,18 @@ export function useSupabaseCRM() {
     } catch (error: any) {
       toast.error("Failed to fetch data: " + error.message);
     } finally {
-      if (firstLoad) setIsLoading(false);
-      else setIsRefreshing(false);
+      if (isInitialLoad) {
+        setIsLoading(false);
+      } else {
+        setIsRefreshing(false);
+      }
     }
   }, [user]);
 
   useEffect(() => {
-    fetchData();
+    if (!hasLoadedOnceRef.current) {
+      fetchData(true); // Initial load
+    }
   }, [fetchData]);
 
   // Compute customers with purchase data
