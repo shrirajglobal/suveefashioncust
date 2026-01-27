@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback, useEffect, memo } from "react";
-import { Users, ShoppingBag, IndianRupee, TrendingUp } from "lucide-react";
+import { Users, ShoppingBag, IndianRupee, TrendingUp, Filter } from "lucide-react";
 import { useSupabaseCRM } from "@/hooks/useSupabaseCRM";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUsageTracking } from "@/hooks/useUsageTracking";
-import { formatINR } from "@/lib/formatters";
+import { formatINR, getDaysBetween } from "@/lib/formatters";
+import { SEGMENTS, CustomerWithPurchases, SegmentPeriod } from "@/types/crm";
 import { Header } from "@/components/crm/Header";
 import { StatCard } from "@/components/crm/StatCard";
 import { SegmentCard } from "@/components/crm/SegmentCard";
@@ -14,6 +15,14 @@ import { ImportCSVForm } from "@/components/crm/ImportCSVForm";
 import { BulkWhatsAppDialog } from "@/components/crm/BulkWhatsAppDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DateRangeFilter, DateRangeType, getDateRange, getDateRangeLabel } from "@/components/crm/DateRangeFilter";
 
 // Memoized stat cards section
@@ -71,6 +80,7 @@ const Index = () => {
   const { isAdminOrAccounts } = useAuth();
   const { logPhoneClick } = useUsageTracking();
   const [dateRange, setDateRange] = useState<DateRangeType>("month");
+  const [selectedSalesman, setSelectedSalesman] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<string>(() => {
     try {
       return localStorage.getItem("crm:index:activeTab") ?? "dashboard";
@@ -101,26 +111,108 @@ const Index = () => {
   // Memoized date range label
   const dateRangeLabel = useMemo(() => getDateRangeLabel(dateRange), [dateRange]);
 
-  // Filter purchases based on selected date range - optimized with useMemo
+  // Filter customers based on selected salesman (for admin/accounts)
+  const filteredCustomers = useMemo(() => {
+    if (!isAdminOrAccounts || selectedSalesman === "all") {
+      return customers;
+    }
+    return customers.filter((c) => c.assignedTo === selectedSalesman);
+  }, [customers, selectedSalesman, isAdminOrAccounts]);
+
+  // Filter purchases based on filtered customers
+  const filteredCustomerIds = useMemo(() => {
+    return new Set(filteredCustomers.map((c) => c.id));
+  }, [filteredCustomers]);
+
+  // Filter purchases based on selected date range and salesman - optimized with useMemo
   const filteredStats = useMemo(() => {
     const { start, end } = getDateRange(dateRange);
     
     const filteredPurchases = purchases.filter((p) => {
       const purchaseDate = new Date(p.date);
-      return purchaseDate >= start && purchaseDate <= end;
+      const inDateRange = purchaseDate >= start && purchaseDate <= end;
+      const belongsToFilteredCustomer = filteredCustomerIds.has(p.customerId);
+      return inDateRange && belongsToFilteredCustomer;
     });
 
-    const totalCustomers = customers.length;
+    const totalCustomers = filteredCustomers.length;
     const totalPurchases = filteredPurchases.length;
     const totalRevenue = filteredPurchases.reduce((sum, p) => sum + p.amount, 0);
     const avgPurchaseValue = totalPurchases > 0 ? totalRevenue / totalPurchases : 0;
 
     return { totalCustomers, totalPurchases, totalRevenue, avgPurchaseValue };
-  }, [customers.length, purchases, dateRange]);
+  }, [filteredCustomers.length, purchases, dateRange, filteredCustomerIds]);
+
+  // Calculate filtered segment stats based on selected salesman
+  const filteredSegmentStats = useMemo(() => {
+    const today = new Date();
+    
+    // First, enrich filtered customers with purchase data
+    const customersWithPurchases: CustomerWithPurchases[] = filteredCustomers.map((customer) => {
+      const customerPurchases = purchases.filter((p) => p.customerId === customer.id);
+      const totalPurchaseAmount = customerPurchases.reduce((sum, p) => sum + p.amount, 0);
+      
+      const sortedPurchases = [...customerPurchases].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      
+      const lastPurchaseDate = sortedPurchases.length > 0 
+        ? new Date(sortedPurchases[0].date) 
+        : null;
+      
+      const daysSinceLastPurchase = lastPurchaseDate 
+        ? getDaysBetween(today, lastPurchaseDate)
+        : null;
+
+      return {
+        ...customer,
+        purchases: customerPurchases,
+        totalPurchaseAmount,
+        lastPurchaseDate,
+        daysSinceLastPurchase,
+      };
+    });
+
+    // Segment the customers
+    const segments: Record<SegmentPeriod, CustomerWithPurchases[]> = {
+      "7d": [], "15d": [], "30d": [], "3m": [], "6m": [], "12m": [], "over": [],
+    };
+
+    customersWithPurchases.forEach((customer) => {
+      if (customer.daysSinceLastPurchase === null) {
+        segments.over.push(customer);
+        return;
+      }
+
+      const days = customer.daysSinceLastPurchase;
+      const segment = SEGMENTS.find((s) => days >= s.minDays && days <= s.maxDays);
+      
+      if (segment) {
+        segments[segment.id].push(customer);
+      }
+    });
+
+    // Generate stats
+    return SEGMENTS.map((segment) => {
+      const segmentCustomers = segments[segment.id];
+      const totalAmount = segmentCustomers.reduce((sum, c) => sum + c.totalPurchaseAmount, 0);
+      
+      return {
+        ...segment,
+        count: segmentCustomers.length,
+        totalAmount,
+        customers: segmentCustomers,
+      };
+    });
+  }, [filteredCustomers, purchases]);
 
   // Memoized callbacks to prevent unnecessary re-renders
   const handleDateRangeChange = useCallback((value: DateRangeType) => {
     setDateRange(value);
+  }, []);
+
+  const handleSalesmanChange = useCallback((value: string) => {
+    setSelectedSalesman(value);
   }, []);
 
   // Memoized lookup functions
@@ -146,15 +238,46 @@ const Index = () => {
       <Header />
 
       <main className="container mx-auto px-4 py-8 space-y-8">
-        {/* Date Range Filter */}
-        <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold">Dashboard Overview</h2>
-            <p className="text-sm text-muted-foreground">
-              Showing data for: {dateRangeLabel}
-            </p>
+        {/* Filters */}
+        <section className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">Dashboard Overview</h2>
+              <p className="text-sm text-muted-foreground">
+                Showing data for: {dateRangeLabel}
+                {isAdminOrAccounts && selectedSalesman !== "all" && (
+                  <span className="ml-1">
+                    • Filtered by: {salesTeamMembers.find(m => m.id === selectedSalesman)?.name || "Unknown"}
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Salesman Filter - Only for Admin/Accounts */}
+              {isAdminOrAccounts && salesTeamMembers.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="salesman-filter" className="flex items-center gap-1 text-sm whitespace-nowrap">
+                    <Filter className="h-4 w-4" />
+                    Salesman
+                  </Label>
+                  <Select value={selectedSalesman} onValueChange={handleSalesmanChange}>
+                    <SelectTrigger id="salesman-filter" className="w-[180px]">
+                      <SelectValue placeholder="All Salesmen" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border shadow-md z-50">
+                      <SelectItem value="all">All Salesmen</SelectItem>
+                      {salesTeamMembers.map((member) => (
+                        <SelectItem key={member.id} value={member.id}>
+                          {member.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <DateRangeFilter value={dateRange} onChange={handleDateRangeChange} />
+            </div>
           </div>
-          <DateRangeFilter value={dateRange} onChange={handleDateRangeChange} />
         </section>
 
         {/* Stats Overview - Memoized */}
@@ -195,11 +318,11 @@ const Index = () => {
               </p>
               </div>
               <div className="grid gap-4 lg:grid-cols-2">
-                {segmentStats.map((segment) => (
+                {filteredSegmentStats.map((segment) => (
                   <SegmentCard 
                     key={segment.id} 
                     segment={segment} 
-                    allCustomers={customers}
+                    allCustomers={filteredCustomers}
                     onPhoneClick={logPhoneClick}
                   />
                 ))}
@@ -213,10 +336,15 @@ const Index = () => {
                 <h2 className="text-xl font-semibold">All Customers</h2>
                 <p className="text-sm text-muted-foreground">
                   View and manage all your customers
+                  {isAdminOrAccounts && selectedSalesman !== "all" && (
+                    <span className="ml-1">
+                      (Filtered by: {salesTeamMembers.find(m => m.id === selectedSalesman)?.name || "Unknown"})
+                    </span>
+                  )}
                 </p>
               </div>
               <CustomerTable 
-                customers={customers} 
+                customers={filteredCustomers} 
                 onDelete={deleteCustomer} 
                 salesTeamMembers={salesTeamMembers}
                 onAssignCustomer={assignCustomer}
