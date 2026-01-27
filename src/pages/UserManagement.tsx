@@ -182,7 +182,7 @@ export default function UserManagement() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
+            <Button variant="ghost" size="icon" onClick={() => navigate("/settings")}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
@@ -272,7 +272,7 @@ export default function UserManagement() {
                           <SelectTrigger className="w-40">
                             <SelectValue placeholder="Assign role" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-background border shadow-lg z-50">
                             <SelectItem value="super_admin">
                               Super Admin
                             </SelectItem>
