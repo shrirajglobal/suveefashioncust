@@ -69,6 +69,7 @@ LoadingSkeleton.displayName = "LoadingSkeleton";
 const Index = () => {
   const { isAdminOrAccounts } = useAuth();
   const [dateRange, setDateRange] = useState<DateRangeType>("month");
+  const [activeTab, setActiveTab] = useState<string>("dashboard");
   
   const {
     customers,
@@ -161,7 +162,7 @@ const Index = () => {
         </section>
 
         {/* Tabs for Dashboard / All Customers */}
-        <Tabs defaultValue="dashboard" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="customers">All Customers</TabsTrigger>
