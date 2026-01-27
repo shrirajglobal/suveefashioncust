@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ScreenProtection } from "@/components/security/ScreenProtection";
+import { useUsageTracking } from "@/hooks/useUsageTracking";
 
 // Lazy load pages for better initial load performance
 const Index = lazy(() => import("./pages/Index"));
@@ -65,6 +66,11 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function UsageTrackingGate() {
+  useUsageTracking();
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider delayDuration={300}>
@@ -72,6 +78,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <UsageTrackingGate />
           <ScreenProtection>
             <Suspense fallback={<PageLoader />}>
               <Routes>

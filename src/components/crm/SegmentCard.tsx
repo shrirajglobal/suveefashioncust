@@ -61,6 +61,7 @@ const CustomerRow = memo(function CustomerRow({
             <a 
               href={`tel:${customer.mobileNo}`}
               className="font-medium hover:text-primary hover:underline transition-colors"
+              onClick={onPhoneClick}
             >
               {customer.name}
             </a>
