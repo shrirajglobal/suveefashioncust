@@ -23,6 +23,7 @@ export type Database = {
           created_by: string | null
           dnd: boolean
           id: string
+          last_contacted_date: string | null
           mobile_no: string
           name: string
           updated_at: string
@@ -35,6 +36,7 @@ export type Database = {
           created_by?: string | null
           dnd?: boolean
           id?: string
+          last_contacted_date?: string | null
           mobile_no: string
           name: string
           updated_at?: string
@@ -47,11 +49,63 @@ export type Database = {
           created_by?: string | null
           dnd?: boolean
           id?: string
+          last_contacted_date?: string | null
           mobile_no?: string
           name?: string
           updated_at?: string
         }
         Relationships: []
+      }
+      interactions: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          interaction_datetime: string
+          interaction_outcome: Database["public"]["Enums"]["interaction_outcome"]
+          interaction_type: Database["public"]["Enums"]["interaction_type"]
+          next_followup_date: string | null
+          notes: string
+          salesperson_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          interaction_datetime?: string
+          interaction_outcome: Database["public"]["Enums"]["interaction_outcome"]
+          interaction_type: Database["public"]["Enums"]["interaction_type"]
+          next_followup_date?: string | null
+          notes: string
+          salesperson_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          interaction_datetime?: string
+          interaction_outcome?: Database["public"]["Enums"]["interaction_outcome"]
+          interaction_type?: Database["public"]["Enums"]["interaction_type"]
+          next_followup_date?: string | null
+          notes?: string
+          salesperson_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer_analytics"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "interactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -113,6 +167,13 @@ export type Database = {
             foreignKeyName: "transactions_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "customer_analytics"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "transactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["id"]
           },
@@ -162,7 +223,25 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      customer_analytics: {
+        Row: {
+          assigned_salesperson_id: string | null
+          assigned_salesperson_name: string | null
+          city: string | null
+          created_at: string | null
+          customer_id: string | null
+          days_since_last_contact: number | null
+          days_since_last_order: number | null
+          dnd: boolean | null
+          last_contacted_date: string | null
+          last_order_date: string | null
+          name: string | null
+          phone: string | null
+          priority_score: number | null
+          total_lifetime_sales: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_user_role: {
@@ -180,6 +259,21 @@ export type Database = {
     }
     Enums: {
       app_role: "super_admin" | "accounts" | "sales_team"
+      interaction_outcome:
+        | "successful"
+        | "no_answer"
+        | "callback_requested"
+        | "not_interested"
+        | "order_placed"
+        | "follow_up_needed"
+        | "other"
+      interaction_type:
+        | "phone_call"
+        | "whatsapp"
+        | "email"
+        | "in_person"
+        | "sms"
+        | "other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -308,6 +402,23 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["super_admin", "accounts", "sales_team"],
+      interaction_outcome: [
+        "successful",
+        "no_answer",
+        "callback_requested",
+        "not_interested",
+        "order_placed",
+        "follow_up_needed",
+        "other",
+      ],
+      interaction_type: [
+        "phone_call",
+        "whatsapp",
+        "email",
+        "in_person",
+        "sms",
+        "other",
+      ],
     },
   },
 } as const
