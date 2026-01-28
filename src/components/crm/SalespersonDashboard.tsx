@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { InteractionQualityCard, QualityMetrics } from "./InteractionQualityCard";
 
 interface DashboardMetrics {
   callsMadeToday: number;
@@ -54,6 +55,7 @@ interface AdminMetrics {
   totalOverdue15Days: number;
   totalHighValueOverdue: number;
   salespersonPerformance: SalespersonPerformance[];
+  qualityMetrics: QualityMetrics[];
 }
 
 export function SalespersonDashboard() {
@@ -67,6 +69,7 @@ export function SalespersonDashboard() {
     customersOver30Days: [],
   });
   const [adminMetrics, setAdminMetrics] = useState<AdminMetrics | null>(null);
+  const [qualityMetrics, setQualityMetrics] = useState<QualityMetrics[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -195,6 +198,14 @@ export function SalespersonDashboard() {
 
       if (recentError) throw recentError;
 
+      // Fetch all interactions with notes and outcomes for quality metrics
+      const { data: allInteractionsWithNotes, error: notesError } = await supabase
+        .from("interactions")
+        .select("id, salesperson_id, notes, interaction_outcome")
+        .gte("interaction_datetime", thirtyDaysAgo);
+
+      if (notesError) throw notesError;
+
       // Calculate organization-wide metrics
       const totalCallsToday = allTodayInteractions?.length || 0;
       const uniqueCustomersToday = new Set(allTodayInteractions?.map(i => i.customer_id) || []);
@@ -260,6 +271,55 @@ export function SalespersonDashboard() {
         };
       }).sort((a, b) => b.callsToday - a.callsToday);
 
+      // Calculate quality metrics per salesperson
+      const calculatedQualityMetrics: QualityMetrics[] = salesUserIds.map(userId => {
+        const name = profileMap.get(userId) || "Unknown";
+        const userInteractions = (allInteractionsWithNotes || []).filter(i => i.salesperson_id === userId);
+        
+        // Calculate average notes length
+        const notesLengths = userInteractions.map(i => (i.notes || "").length);
+        const avgNotesLength = notesLengths.length > 0 
+          ? notesLengths.reduce((sum, len) => sum + len, 0) / notesLengths.length 
+          : 0;
+        
+        // Count short notes (less than 15 characters)
+        const shortNotesCount = userInteractions.filter(i => (i.notes || "").length < 15).length;
+        
+        // Detect repetitive notes (same text used more than once)
+        const notesCounts = new Map<string, number>();
+        userInteractions.forEach(i => {
+          const normalizedNote = (i.notes || "").toLowerCase().trim();
+          if (normalizedNote.length > 0) {
+            notesCounts.set(normalizedNote, (notesCounts.get(normalizedNote) || 0) + 1);
+          }
+        });
+        const repetitiveNotesCount = Array.from(notesCounts.values()).filter(count => count > 1).length;
+        
+        // Calculate connected vs not connected
+        // Connected outcomes: successful, order_placed, callback_requested, follow_up_needed
+        // Not connected outcomes: no_answer, not_interested
+        const connectedOutcomes = ["successful", "order_placed", "callback_requested", "follow_up_needed"];
+        const notConnectedOutcomes = ["no_answer", "not_interested"];
+        
+        const connectedCount = userInteractions.filter(i => 
+          connectedOutcomes.includes(i.interaction_outcome)
+        ).length;
+        const notConnectedCount = userInteractions.filter(i => 
+          notConnectedOutcomes.includes(i.interaction_outcome)
+        ).length;
+
+        return {
+          id: userId,
+          name,
+          avgNotesLength,
+          shortNotesCount,
+          repetitiveNotesCount,
+          totalInteractions: userInteractions.length,
+          connectedCount,
+          notConnectedCount,
+        };
+      }).sort((a, b) => b.totalInteractions - a.totalInteractions);
+
       // Calculate high-value at risk (sorted by sales then days since contact)
       const highValueAtRisk = (analyticsData || [])
         .filter(c => 
@@ -304,7 +364,10 @@ export function SalespersonDashboard() {
         totalOverdue15Days: allOverdue15Days.length,
         totalHighValueOverdue: allHighValueOverdue.length,
         salespersonPerformance,
+        qualityMetrics: calculatedQualityMetrics,
       });
+
+      setQualityMetrics(calculatedQualityMetrics);
 
       // Also set the detailed customer lists for the admin
       setMetrics({
@@ -593,6 +656,11 @@ export function SalespersonDashboard() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Interaction Quality Monitoring - Admin Only */}
+      {isAdminOrAccounts && qualityMetrics.length > 0 && (
+        <InteractionQualityCard qualityMetrics={qualityMetrics} />
       )}
 
       {/* High-Value Overdue Customers Alert */}
