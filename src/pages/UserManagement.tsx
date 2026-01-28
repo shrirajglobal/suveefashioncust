@@ -45,8 +45,10 @@ import { toast } from "sonner";
 import { Shield, Users, ArrowLeft, Lock, Unlock, Clock, Phone, IndianRupee, Target, Edit2, Check, X } from "lucide-react";
 import { addDays, format, formatDistanceToNow } from "date-fns";
 import { formatINR } from "@/lib/formatters";
+import { startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, subMonths, subQuarters, subYears } from "date-fns";
 
 type AppRole = "super_admin" | "accounts" | "sales_team";
+type TimePeriod = "monthly" | "quarterly" | "annual";
 
 interface UserWithRole {
   id: string;
@@ -84,6 +86,12 @@ const RESTRICTION_DURATIONS = [
   { value: "indefinite", label: "Indefinitely" },
 ];
 
+const TIME_PERIODS: { value: TimePeriod; label: string; salaryMultiplier: number; targetMultiplier: number }[] = [
+  { value: "monthly", label: "This Month", salaryMultiplier: 1, targetMultiplier: 1 },
+  { value: "quarterly", label: "This Quarter", salaryMultiplier: 3, targetMultiplier: 3 },
+  { value: "annual", label: "This Year", salaryMultiplier: 12, targetMultiplier: 12 },
+];
+
 export default function UserManagement() {
   const { userRole, user: currentUser } = useAuth();
   const navigate = useNavigate();
@@ -112,6 +120,9 @@ export default function UserManagement() {
     salary: "",
   });
 
+  // Time period filter
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>("monthly");
+
   // Only super_admin can access this page
   const canManageRoles = userRole === "super_admin";
 
@@ -124,7 +135,19 @@ export default function UserManagement() {
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [timePeriod]);
+
+  const getDateRange = () => {
+    const now = new Date();
+    switch (timePeriod) {
+      case "monthly":
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+      case "quarterly":
+        return { start: startOfQuarter(now), end: endOfQuarter(now) };
+      case "annual":
+        return { start: startOfYear(now), end: endOfYear(now) };
+    }
+  };
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -143,19 +166,37 @@ export default function UserManagement() {
 
       if (rolesError) throw rolesError;
 
-      // Fetch total sales achieved by each salesperson
-      const { data: salesData, error: salesError } = await supabase
-        .from("customer_analytics")
-        .select("assigned_salesperson_id, total_lifetime_sales");
+      // Fetch sales achieved by each salesperson for the selected period
+      const { start, end } = getDateRange();
+      const { data: transactionsData, error: transactionsError } = await supabase
+        .from("transactions")
+        .select("customer_id, amount, transaction_date")
+        .gte("transaction_date", start.toISOString().split('T')[0])
+        .lte("transaction_date", end.toISOString().split('T')[0]);
 
-      if (salesError) throw salesError;
+      if (transactionsError) throw transactionsError;
 
-      // Aggregate sales by salesperson
+      // Get customer to salesperson mapping
+      const { data: customersData, error: customersError } = await supabase
+        .from("customers")
+        .select("id, assigned_to");
+
+      if (customersError) throw customersError;
+
+      const customerToSalesperson = new Map<string, string>();
+      customersData?.forEach((c) => {
+        if (c.assigned_to) {
+          customerToSalesperson.set(c.id, c.assigned_to);
+        }
+      });
+
+      // Aggregate sales by salesperson for the period
       const salesBySalesperson = new Map<string, number>();
-      salesData?.forEach((item) => {
-        if (item.assigned_salesperson_id) {
-          const current = salesBySalesperson.get(item.assigned_salesperson_id) || 0;
-          salesBySalesperson.set(item.assigned_salesperson_id, current + (item.total_lifetime_sales || 0));
+      transactionsData?.forEach((txn) => {
+        const salespersonId = customerToSalesperson.get(txn.customer_id);
+        if (salespersonId) {
+          const current = salesBySalesperson.get(salespersonId) || 0;
+          salesBySalesperson.set(salespersonId, current + Number(txn.amount || 0));
         }
       });
 
@@ -363,6 +404,26 @@ export default function UserManagement() {
           </div>
         </div>
 
+        {/* Time Period Filter */}
+        <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-lg">
+          <Label className="text-sm font-medium">View Period:</Label>
+          <Select value={timePeriod} onValueChange={(v) => setTimePeriod(v as TimePeriod)}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-background border shadow-lg z-50">
+              {TIME_PERIODS.map((period) => (
+                <SelectItem key={period.value} value={period.value}>
+                  {period.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Salary, target & achieved values adjust based on the selected period
+          </p>
+        </div>
+
         {/* Role Descriptions */}
         <div className="grid gap-4 md:grid-cols-3">
           {(Object.keys(ROLE_LABELS) as AppRole[]).map((role) => (
@@ -411,6 +472,12 @@ export default function UserManagement() {
                   const isExpired = user.restrictedUntil && new Date(user.restrictedUntil) < new Date();
                   const effectivelyRestricted = user.isRestricted && !isExpired;
                   
+                  // Calculate period-adjusted values
+                  const periodConfig = TIME_PERIODS.find(p => p.value === timePeriod)!;
+                  const periodSalary = user.salary ? user.salary * periodConfig.salaryMultiplier : null;
+                  const periodTarget = user.salary ? user.salary * 30 * periodConfig.targetMultiplier : null;
+                  const periodAchieved = user.targetAchieved;
+                  
                   return (
                     <TableRow 
                       key={user.id}
@@ -452,20 +519,30 @@ export default function UserManagement() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {user.salary ? (
-                          <div className="flex items-center gap-1">
-                            <IndianRupee className="h-3 w-3 text-muted-foreground" />
-                            {formatINR(user.salary).replace("₹", "")}
+                        {periodSalary ? (
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-1">
+                              <IndianRupee className="h-3 w-3 text-muted-foreground" />
+                              {formatINR(periodSalary).replace("₹", "")}
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {timePeriod === "monthly" ? "/month" : timePeriod === "quarterly" ? "/quarter" : "/year"}
+                            </span>
                           </div>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        {user.salesTarget ? (
-                          <div className="flex items-center gap-1">
-                            <Target className="h-3 w-3 text-muted-foreground" />
-                            {formatINR(user.salesTarget)}
+                        {periodTarget ? (
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-1">
+                              <Target className="h-3 w-3 text-muted-foreground" />
+                              {formatINR(periodTarget)}
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {timePeriod === "monthly" ? "Monthly" : timePeriod === "quarterly" ? "Quarterly" : "Annual"} target
+                            </span>
                           </div>
                         ) : (
                           <span className="text-muted-foreground">—</span>
@@ -474,25 +551,25 @@ export default function UserManagement() {
                       <TableCell>
                         {user.role === "sales_team" ? (
                           <div className="space-y-1">
-                            <div className="font-medium">{formatINR(user.targetAchieved)}</div>
-                            {user.salesTarget && user.salesTarget > 0 && (
+                            <div className="font-medium">{formatINR(periodAchieved)}</div>
+                            {periodTarget && periodTarget > 0 && (
                               <div className="flex items-center gap-2">
                                 <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
                                   <div 
                                     className={`h-full rounded-full ${
-                                      (user.targetAchieved / user.salesTarget) >= 1 
+                                      (periodAchieved / periodTarget) >= 1 
                                         ? "bg-green-500" 
-                                        : (user.targetAchieved / user.salesTarget) >= 0.5 
+                                        : (periodAchieved / periodTarget) >= 0.5 
                                         ? "bg-yellow-500" 
                                         : "bg-destructive"
                                     }`}
                                     style={{ 
-                                      width: `${Math.min((user.targetAchieved / user.salesTarget) * 100, 100)}%` 
+                                      width: `${Math.min((periodAchieved / periodTarget) * 100, 100)}%` 
                                     }}
                                   />
                                 </div>
                                 <span className="text-xs text-muted-foreground">
-                                  {Math.round((user.targetAchieved / user.salesTarget) * 100)}%
+                                  {Math.round((periodAchieved / periodTarget) * 100)}%
                                 </span>
                               </div>
                             )}
