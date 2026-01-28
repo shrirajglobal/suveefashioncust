@@ -21,6 +21,8 @@ interface DashboardMetrics {
   customersContactedToday: number;
   customersNotContacted15Days: CustomerAlert[];
   highValueOverdue: CustomerAlert[];
+  highValueAtRisk: CustomerAlert[];
+  customersOver30Days: CustomerAlert[];
 }
 
 interface CustomerAlert {
@@ -61,6 +63,8 @@ export function SalespersonDashboard() {
     customersContactedToday: 0,
     customersNotContacted15Days: [],
     highValueOverdue: [],
+    highValueAtRisk: [],
+    customersOver30Days: [],
   });
   const [adminMetrics, setAdminMetrics] = useState<AdminMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -140,6 +144,8 @@ export function SalespersonDashboard() {
         customersContactedToday,
         customersNotContacted15Days,
         highValueOverdue,
+        highValueAtRisk: [],
+        customersOver30Days: [],
       });
     };
 
@@ -254,6 +260,44 @@ export function SalespersonDashboard() {
         };
       }).sort((a, b) => b.callsToday - a.callsToday);
 
+      // Calculate high-value at risk (sorted by sales then days since contact)
+      const highValueAtRisk = (analyticsData || [])
+        .filter(c => 
+          (c.total_lifetime_sales || 0) > 50000 && 
+          (c.days_since_last_contact === null || c.days_since_last_contact > 7)
+        )
+        .map(c => ({
+          customer_id: c.customer_id!,
+          name: c.name!,
+          phone: c.phone!,
+          total_lifetime_sales: c.total_lifetime_sales || 0,
+          days_since_last_contact: c.days_since_last_contact,
+          last_contacted_date: c.last_contacted_date,
+          assigned_salesperson_name: c.assigned_salesperson_name,
+        }))
+        .sort((a, b) => {
+          // First by total sales (descending)
+          if (b.total_lifetime_sales !== a.total_lifetime_sales) {
+            return b.total_lifetime_sales - a.total_lifetime_sales;
+          }
+          // Then by days since contact (descending - more days = higher priority)
+          return (b.days_since_last_contact || 999) - (a.days_since_last_contact || 999);
+        });
+
+      // Calculate customers over 30 days not contacted
+      const customersOver30Days = (analyticsData || [])
+        .filter(c => c.days_since_last_contact === null || c.days_since_last_contact > 30)
+        .map(c => ({
+          customer_id: c.customer_id!,
+          name: c.name!,
+          phone: c.phone!,
+          total_lifetime_sales: c.total_lifetime_sales || 0,
+          days_since_last_contact: c.days_since_last_contact,
+          last_contacted_date: c.last_contacted_date,
+          assigned_salesperson_name: c.assigned_salesperson_name,
+        }))
+        .sort((a, b) => (b.days_since_last_contact || 999) - (a.days_since_last_contact || 999));
+
       setAdminMetrics({
         totalCallsToday,
         totalCustomersContactedToday,
@@ -284,6 +328,8 @@ export function SalespersonDashboard() {
           last_contacted_date: c.last_contacted_date,
           assigned_salesperson_name: c.assigned_salesperson_name,
         })).sort((a, b) => b.total_lifetime_sales - a.total_lifetime_sales),
+        highValueAtRisk,
+        customersOver30Days,
       });
     };
 
@@ -648,6 +694,136 @@ export function SalespersonDashboard() {
                 </p>
               )}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* High-Value Customers At Risk - Admin Only */}
+      {isAdminOrAccounts && metrics.highValueAtRisk.length > 0 && (
+        <Card className="border-warning">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2">
+              <Crown className="h-5 w-5 text-warning-foreground" />
+              High-Value Customers At Risk
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Sorted by total sales and days since last contact
+            </p>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Customer</TableHead>
+                  <TableHead className="text-right">Total Sales</TableHead>
+                  <TableHead className="text-center">Days Since Contact</TableHead>
+                  <TableHead>Assigned To</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {metrics.highValueAtRisk.slice(0, 15).map((customer) => {
+                  const isUrgent = (customer.days_since_last_contact || 999) > 15;
+                  
+                  return (
+                    <TableRow key={customer.customer_id} className={isUrgent ? "bg-destructive/5" : ""}>
+                      <TableCell className={`font-medium ${isUrgent ? "text-destructive" : ""}`}>
+                        {customer.name}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatINR(customer.total_lifetime_sales)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={isUrgent ? "destructive" : "secondary"}>
+                          {customer.days_since_last_contact !== null
+                            ? `${customer.days_since_last_contact} days`
+                            : "Never"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {customer.assigned_salesperson_name || "Unassigned"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            {metrics.highValueAtRisk.length > 15 && (
+              <p className="text-sm text-muted-foreground text-center pt-3">
+                +{metrics.highValueAtRisk.length - 15} more high-value customers at risk
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Customers Over 30 Days Grouped by Salesperson - Admin Only */}
+      {isAdminOrAccounts && metrics.customersOver30Days.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <Clock className="h-5 w-5" />
+              Customers Not Contacted (30+ Days) by Salesperson
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Grouped by assigned salesperson for accountability
+            </p>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              // Group customers by salesperson
+              const grouped = metrics.customersOver30Days.reduce((acc, customer) => {
+                const key = customer.assigned_salesperson_name || "Unassigned";
+                if (!acc[key]) {
+                  acc[key] = [];
+                }
+                acc[key].push(customer);
+                return acc;
+              }, {} as Record<string, typeof metrics.customersOver30Days>);
+
+              // Sort groups by count (descending)
+              const sortedGroups = Object.entries(grouped).sort((a, b) => b[1].length - a[1].length);
+
+              return (
+                <div className="space-y-4">
+                  {sortedGroups.map(([salesperson, customers]) => (
+                    <div key={salesperson} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{salesperson}</span>
+                        </div>
+                        <Badge variant="destructive">{customers.length} overdue</Badge>
+                      </div>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {customers.slice(0, 5).map((customer) => (
+                          <div
+                            key={customer.customer_id}
+                            className="flex items-center justify-between py-2 px-3 rounded bg-destructive/5"
+                          >
+                            <div>
+                              <p className="font-medium text-sm text-destructive">{customer.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {formatINR(customer.total_lifetime_sales)}
+                              </p>
+                            </div>
+                            <span className="text-xs text-destructive font-medium">
+                              {customer.days_since_last_contact !== null
+                                ? `${customer.days_since_last_contact} days`
+                                : "Never contacted"}
+                            </span>
+                          </div>
+                        ))}
+                        {customers.length > 5 && (
+                          <p className="text-xs text-muted-foreground text-center pt-1">
+                            +{customers.length - 5} more
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       )}
