@@ -23,6 +23,7 @@ export type Database = {
           created_by: string | null
           dnd: boolean
           id: string
+          is_critical: boolean
           last_contacted_date: string | null
           mobile_no: string
           name: string
@@ -36,6 +37,7 @@ export type Database = {
           created_by?: string | null
           dnd?: boolean
           id?: string
+          is_critical?: boolean
           last_contacted_date?: string | null
           mobile_no: string
           name: string
@@ -49,6 +51,7 @@ export type Database = {
           created_by?: string | null
           dnd?: boolean
           id?: string
+          is_critical?: boolean
           last_contacted_date?: string | null
           mobile_no?: string
           name?: string
@@ -113,6 +116,9 @@ export type Database = {
           email: string | null
           full_name: string
           id: string
+          is_restricted: boolean
+          restricted_until: string | null
+          restriction_reason: string | null
           updated_at: string
           user_id: string
         }
@@ -121,6 +127,9 @@ export type Database = {
           email?: string | null
           full_name: string
           id?: string
+          is_restricted?: boolean
+          restricted_until?: string | null
+          restriction_reason?: string | null
           updated_at?: string
           user_id: string
         }
@@ -129,6 +138,9 @@ export type Database = {
           email?: string | null
           full_name?: string
           id?: string
+          is_restricted?: boolean
+          restricted_until?: string | null
+          restriction_reason?: string | null
           updated_at?: string
           user_id?: string
         }

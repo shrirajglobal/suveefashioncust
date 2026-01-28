@@ -8,6 +8,7 @@ export interface Customer {
   assignedTo?: string | null;
   assignedToName?: string | null;
   dnd: boolean;
+  isCritical: boolean;
 }
 
 export interface Purchase {
