@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { formatINR } from "@/lib/formatters";
-import { startOfDay } from "date-fns";
+import { startOfDay, subDays, formatDistanceToNow } from "date-fns";
 import {
   Table,
   TableBody,
@@ -40,6 +40,10 @@ interface SalespersonPerformance {
   customersContactedToday: number;
   overdueCount: number;
   highValueOverdueCount: number;
+  avgDailyCalls: number;
+  highValueContactedPercent: number;
+  totalHighValueCustomers: number;
+  lastInteractionTime: string | null;
 }
 
 interface AdminMetrics {
@@ -176,6 +180,15 @@ export function SalespersonDashboard() {
 
       if (analyticsError) throw analyticsError;
 
+      // Fetch last 30 days of interactions for average calculation
+      const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
+      const { data: recentInteractions, error: recentError } = await supabase
+        .from("interactions")
+        .select("id, salesperson_id, interaction_datetime")
+        .gte("interaction_datetime", thirtyDaysAgo);
+
+      if (recentError) throw recentError;
+
       // Calculate organization-wide metrics
       const totalCallsToday = allTodayInteractions?.length || 0;
       const uniqueCustomersToday = new Set(allTodayInteractions?.map(i => i.customer_id) || []);
@@ -193,8 +206,8 @@ export function SalespersonDashboard() {
       // Calculate per-salesperson performance
       const salespersonPerformance: SalespersonPerformance[] = salesUserIds.map(userId => {
         const name = profileMap.get(userId) || "Unknown";
-        const userInteractions = (allTodayInteractions || []).filter(i => i.salesperson_id === userId);
-        const userCustomersToday = new Set(userInteractions.map(i => i.customer_id));
+        const userInteractionsToday = (allTodayInteractions || []).filter(i => i.salesperson_id === userId);
+        const userCustomersToday = new Set(userInteractionsToday.map(i => i.customer_id));
         
         // Count assigned customers that are overdue
         const assignedCustomers = (analyticsData || []).filter(c => c.assigned_salesperson_id === userId);
@@ -206,13 +219,38 @@ export function SalespersonDashboard() {
                (c.days_since_last_contact === null || c.days_since_last_contact > 10)
         ).length;
 
+        // Calculate average daily calls (last 30 days)
+        const userRecentInteractions = (recentInteractions || []).filter(i => i.salesperson_id === userId);
+        const avgDailyCalls = userRecentInteractions.length / 30;
+
+        // Calculate high-value customers contacted percentage
+        const highValueCustomers = assignedCustomers.filter(c => (c.total_lifetime_sales || 0) > 50000);
+        const highValueContacted = highValueCustomers.filter(
+          c => c.days_since_last_contact !== null && c.days_since_last_contact <= 10
+        );
+        const highValueContactedPercent = highValueCustomers.length > 0 
+          ? (highValueContacted.length / highValueCustomers.length) * 100 
+          : 100;
+
+        // Get last interaction time
+        const userAllInteractions = (recentInteractions || [])
+          .filter(i => i.salesperson_id === userId)
+          .sort((a, b) => new Date(b.interaction_datetime).getTime() - new Date(a.interaction_datetime).getTime());
+        const lastInteractionTime = userAllInteractions.length > 0 
+          ? userAllInteractions[0].interaction_datetime 
+          : null;
+
         return {
           id: userId,
           name,
-          callsToday: userInteractions.length,
+          callsToday: userInteractionsToday.length,
           customersContactedToday: userCustomersToday.size,
           overdueCount,
           highValueOverdueCount,
+          avgDailyCalls: Math.round(avgDailyCalls * 10) / 10,
+          highValueContactedPercent: Math.round(highValueContactedPercent),
+          totalHighValueCustomers: highValueCustomers.length,
+          lastInteractionTime,
         };
       }).sort((a, b) => b.callsToday - a.callsToday);
 
@@ -413,51 +451,100 @@ export function SalespersonDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
-              Salesperson Performance Today
+              Salesperson Performance Comparison
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Individual performance metrics for each sales team member
+              Detailed performance metrics • Poor performance highlighted in red
             </p>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Salesperson</TableHead>
                   <TableHead className="text-center">Calls Today</TableHead>
-                  <TableHead className="text-center">Customers Contacted</TableHead>
-                  <TableHead className="text-center">Overdue (15+ days)</TableHead>
-                  <TableHead className="text-center">High-Value Overdue</TableHead>
+                  <TableHead className="text-center">Avg Daily Calls</TableHead>
+                  <TableHead className="text-center">Overdue Customers</TableHead>
+                  <TableHead className="text-center">High-Value %</TableHead>
+                  <TableHead className="text-center">Last Interaction</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {adminMetrics.salespersonPerformance.map((sp) => (
-                  <TableRow key={sp.id}>
-                    <TableCell className="font-medium">{sp.name}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={sp.callsToday > 0 ? "default" : "secondary"}>
-                        {sp.callsToday}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={sp.customersContactedToday > 0 ? "default" : "secondary"}>
-                        {sp.customersContactedToday}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={sp.overdueCount > 0 ? "destructive" : "secondary"}>
-                        {sp.overdueCount}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={sp.highValueOverdueCount > 0 ? "destructive" : "secondary"}>
-                        {sp.highValueOverdueCount}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {adminMetrics.salespersonPerformance.map((sp) => {
+                  // Determine poor performance indicators
+                  const poorCallsToday = sp.callsToday === 0;
+                  const poorAvgCalls = sp.avgDailyCalls < 3;
+                  const poorOverdue = sp.overdueCount > 5;
+                  const poorHighValue = sp.highValueContactedPercent < 50 && sp.totalHighValueCustomers > 0;
+                  const poorLastInteraction = sp.lastInteractionTime 
+                    ? (new Date().getTime() - new Date(sp.lastInteractionTime).getTime()) > 24 * 60 * 60 * 1000
+                    : true;
+                  
+                  const hasPoorPerformance = poorCallsToday || poorAvgCalls || poorOverdue || poorHighValue;
+
+                  return (
+                    <TableRow key={sp.id} className={hasPoorPerformance ? "bg-destructive/5" : ""}>
+                      <TableCell className={`font-medium ${hasPoorPerformance ? "text-destructive" : ""}`}>
+                        {sp.name}
+                        {hasPoorPerformance && (
+                          <AlertTriangle className="inline-block ml-2 h-3 w-3 text-destructive" />
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge 
+                          variant={poorCallsToday ? "destructive" : sp.callsToday > 0 ? "default" : "secondary"}
+                          className={poorCallsToday ? "animate-pulse" : ""}
+                        >
+                          {sp.callsToday}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className={`font-medium ${poorAvgCalls ? "text-destructive" : ""}`}>
+                          {sp.avgDailyCalls.toFixed(1)}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-1">/day</span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={poorOverdue ? "destructive" : sp.overdueCount > 0 ? "outline" : "secondary"}>
+                          {sp.overdueCount}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {sp.totalHighValueCustomers > 0 ? (
+                          <div className="flex flex-col items-center">
+                            <span className={`font-medium ${poorHighValue ? "text-destructive" : ""}`}>
+                              {sp.highValueContactedPercent}%
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              of {sp.totalHighValueCustomers}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">No HV</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {sp.lastInteractionTime ? (
+                          <span className={`text-sm ${poorLastInteraction ? "text-destructive" : "text-muted-foreground"}`}>
+                            {formatDistanceToNow(new Date(sp.lastInteractionTime), { addSuffix: true })}
+                          </span>
+                        ) : (
+                          <span className="text-destructive text-sm">Never</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
+            
+            {/* Performance Legend */}
+            <div className="mt-4 pt-4 border-t flex flex-wrap gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-destructive/20 border border-destructive/30" />
+                Poor: 0 calls today, {"<"}3 avg/day, {">"}5 overdue, or {"<"}50% HV contacted
+              </span>
+            </div>
           </CardContent>
         </Card>
       )}
