@@ -15,6 +15,7 @@ import { ImportCSVForm } from "@/components/crm/ImportCSVForm";
 import { BulkWhatsAppDialog } from "@/components/crm/BulkWhatsAppDialog";
 import { RevenueComparisonChart } from "@/components/crm/RevenueComparisonChart";
 import { TodaysCallList } from "@/components/crm/TodaysCallList";
+import { SalespersonDashboard } from "@/components/crm/SalespersonDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
@@ -326,11 +327,16 @@ const Index = () => {
 
         {/* Tabs for Dashboard / Call List / All Customers */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-lg grid-cols-3">
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsList className="grid w-full max-w-lg grid-cols-4">
+            <TabsTrigger value="my-dashboard">My Stats</TabsTrigger>
+            <TabsTrigger value="dashboard">Segments</TabsTrigger>
             <TabsTrigger value="calllist">Call List</TabsTrigger>
-            <TabsTrigger value="customers">All Customers</TabsTrigger>
+            <TabsTrigger value="customers">Customers</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="my-dashboard" className="space-y-6">
+            <SalespersonDashboard />
+          </TabsContent>
 
           <TabsContent value="dashboard" className="space-y-6">
             {/* Customer Segmentation */}
