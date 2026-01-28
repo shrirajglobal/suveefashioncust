@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, memo } from "react";
-import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc, UserCheck, Users, MessageCircle, PhoneOff } from "lucide-react";
+import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc, UserCheck, Users, MessageCircle, PhoneOff, AlertTriangle } from "lucide-react";
 import { CustomerWithPurchases } from "@/types/crm";
 import { formatINR, formatDaysAgo, formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -43,10 +43,12 @@ interface CustomerTableProps {
   onAssignCustomer?: (customerId: string, salesUserId: string | null) => Promise<boolean>;
   onBulkAssign?: (customerIds: string[], salesUserId: string | null) => Promise<boolean>;
   onToggleDND?: (customerId: string, dndStatus: boolean) => Promise<boolean>;
+  onToggleCritical?: (customerId: string, criticalStatus: boolean) => Promise<boolean>;
+  onBulkToggleCritical?: (customerIds: string[], criticalStatus: boolean) => Promise<boolean>;
   onPhoneClick?: () => void;
 }
 
-type SortField = "name" | "city" | "totalPurchaseAmount" | "daysSinceLastPurchase" | "assignedTo";
+type SortField = "name" | "city" | "totalPurchaseAmount" | "daysSinceLastPurchase" | "assignedTo" | "isCritical";
 type SortOrder = "asc" | "desc";
 
 export const CustomerTable = memo(function CustomerTable({ 
@@ -56,6 +58,8 @@ export const CustomerTable = memo(function CustomerTable({
   onAssignCustomer,
   onBulkAssign,
   onToggleDND,
+  onToggleCritical,
+  onBulkToggleCritical,
   onPhoneClick,
 }: CustomerTableProps) {
   const { userRole, isAdminOrAccounts } = useAuth();
@@ -67,6 +71,7 @@ export const CustomerTable = memo(function CustomerTable({
   const [isAssigning, setIsAssigning] = useState(false);
 
   const canAssignCustomers = userRole === "super_admin" || userRole === "accounts";
+  const isSuperAdmin = userRole === "super_admin";
 
   const searchLower = search.toLowerCase();
   
@@ -82,6 +87,11 @@ export const CustomerTable = memo(function CustomerTable({
 
   const sortedCustomers = useMemo(() => {
     return [...filteredCustomers].sort((a, b) => {
+      // Critical customers always come first
+      if (a.isCritical !== b.isCritical) {
+        return a.isCritical ? -1 : 1;
+      }
+
       let comparison = 0;
 
       switch (sortField) {
@@ -101,6 +111,9 @@ export const CustomerTable = memo(function CustomerTable({
           break;
         case "assignedTo":
           comparison = (a.assignedToName ?? "").localeCompare(b.assignedToName ?? "");
+          break;
+        case "isCritical":
+          comparison = (a.isCritical ? 1 : 0) - (b.isCritical ? 1 : 0);
           break;
       }
 
@@ -179,23 +192,36 @@ export const CustomerTable = memo(function CustomerTable({
     setBulkAssignValue("");
   }, []);
 
+  const handleBulkCritical = useCallback(async (criticalStatus: boolean) => {
+    if (!onBulkToggleCritical || selectedIds.size === 0) return;
+    
+    setIsAssigning(true);
+    const success = await onBulkToggleCritical(Array.from(selectedIds), criticalStatus);
+    
+    if (success) {
+      setSelectedIds(new Set());
+    }
+    setIsAssigning(false);
+  }, [onBulkToggleCritical, selectedIds]);
+
   return (
     <div className="space-y-4">
       {/* Bulk Action Bar */}
       {canAssignCustomers && selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg border animate-fade-in">
+        <div className="flex flex-wrap items-center gap-3 p-3 bg-muted/50 rounded-lg border animate-fade-in">
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">
               {selectedIds.size} customer{selectedIds.size !== 1 ? "s" : ""} selected
             </span>
           </div>
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
+            {/* Bulk Assign */}
             <Select value={bulkAssignValue} onValueChange={setBulkAssignValue}>
               <SelectTrigger className="w-44 h-8 text-xs">
                 <SelectValue placeholder="Assign to..." />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-background border shadow-md z-50">
                 <SelectItem value="unassigned">
                   <span className="text-muted-foreground">Unassigned</span>
                 </SelectItem>
@@ -213,6 +239,32 @@ export const CustomerTable = memo(function CustomerTable({
             >
               {isAssigning ? "Assigning..." : "Assign"}
             </Button>
+            
+            {/* Bulk Critical Toggle - Super Admin Only */}
+            {isSuperAdmin && onBulkToggleCritical && (
+              <>
+                <div className="h-4 w-px bg-border mx-1" />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleBulkCritical(true)}
+                  disabled={isAssigning}
+                  className="text-destructive border-destructive hover:bg-destructive/10"
+                >
+                  <AlertTriangle className="h-4 w-4 mr-1" />
+                  Mark Critical
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleBulkCritical(false)}
+                  disabled={isAssigning}
+                >
+                  Unmark Critical
+                </Button>
+              </>
+            )}
+            
             <Button size="sm" variant="ghost" onClick={clearSelection}>
               Cancel
             </Button>
@@ -305,7 +357,13 @@ export const CustomerTable = memo(function CustomerTable({
               </TableRow>
             ) : (
               sortedCustomers.map((customer) => (
-                <TableRow key={customer.id} className="animate-fade-in">
+                <TableRow 
+                  key={customer.id} 
+                  className={cn(
+                    "animate-fade-in",
+                    customer.isCritical && "bg-destructive/5 border-l-4 border-l-destructive"
+                  )}
+                >
                   {canAssignCustomers && (
                     <TableCell>
                       <Checkbox
@@ -316,17 +374,32 @@ export const CustomerTable = memo(function CustomerTable({
                     </TableCell>
                   )}
                   <TableCell>
-                    <div>
-                      <a 
-                        href={`tel:${customer.mobileNo}`}
-                        className="font-medium hover:text-primary hover:underline transition-colors"
-                        onClick={onPhoneClick}
-                      >
-                        {customer.name}
-                      </a>
-                      <p className="text-xs text-muted-foreground">
-                        {customer.purchases.length} sale{customer.purchases.length !== 1 ? "s" : ""}
-                      </p>
+                    <div className="flex items-start gap-2">
+                      {customer.isCritical && (
+                        <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
+                      )}
+                      <div>
+                        <a 
+                          href={`tel:${customer.mobileNo}`}
+                          className={cn(
+                            "font-medium hover:text-primary hover:underline transition-colors",
+                            customer.isCritical && "text-destructive"
+                          )}
+                          onClick={onPhoneClick}
+                        >
+                          {customer.name}
+                        </a>
+                        <div className="flex items-center gap-1">
+                          <p className="text-xs text-muted-foreground">
+                            {customer.purchases.length} sale{customer.purchases.length !== 1 ? "s" : ""}
+                          </p>
+                          {customer.isCritical && (
+                            <Badge variant="destructive" className="text-xs h-4 px-1">
+                              Critical
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -415,6 +488,19 @@ export const CustomerTable = memo(function CustomerTable({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
+                      {/* Critical Toggle - Super Admin Only */}
+                      {isSuperAdmin && onToggleCritical && (
+                        <Button
+                          variant={customer.isCritical ? "destructive" : "outline"}
+                          size="sm"
+                          onClick={() => onToggleCritical(customer.id, !customer.isCritical)}
+                          title={customer.isCritical ? "Remove Critical" : "Mark as Critical"}
+                          className="h-8 px-2"
+                        >
+                          <AlertTriangle className="h-4 w-4 mr-1" />
+                          <span className="text-xs">Critical</span>
+                        </Button>
+                      )}
                       {isAdminOrAccounts && onToggleDND && (
                         <Button
                           variant={customer.dnd ? "destructive" : "outline"}

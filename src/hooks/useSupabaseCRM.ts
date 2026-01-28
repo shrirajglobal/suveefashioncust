@@ -15,6 +15,7 @@ interface DBCustomer {
   assigned_to: string | null;
   created_by: string | null;
   dnd: boolean;
+  is_critical: boolean;
 }
 
 interface DBTransaction {
@@ -38,6 +39,7 @@ function mapDBCustomer(db: DBCustomer, profilesMap?: Map<string, string>): Custo
     assignedTo: db.assigned_to,
     assignedToName: db.assigned_to && profilesMap ? profilesMap.get(db.assigned_to) : null,
     dnd: db.dnd,
+    isCritical: db.is_critical,
   };
 }
 
@@ -489,6 +491,40 @@ export function useSupabaseCRM() {
     return true;
   };
 
+  // Toggle Critical status for a customer (Super Admin only)
+  const toggleCritical = async (customerId: string, criticalStatus: boolean) => {
+    const { error } = await supabase
+      .from("customers")
+      .update({ is_critical: criticalStatus })
+      .eq("id", customerId);
+
+    if (error) {
+      toast.error("Failed to update critical status: " + error.message);
+      return false;
+    }
+
+    toast.success(criticalStatus ? "Customer marked as Critical" : "Critical status removed");
+    await fetchData();
+    return true;
+  };
+
+  // Bulk toggle critical status
+  const bulkToggleCritical = async (customerIds: string[], criticalStatus: boolean) => {
+    const { error } = await supabase
+      .from("customers")
+      .update({ is_critical: criticalStatus })
+      .in("id", customerIds);
+
+    if (error) {
+      toast.error("Failed to update critical status: " + error.message);
+      return false;
+    }
+
+    toast.success(`${customerIds.length} customer${customerIds.length !== 1 ? "s" : ""} ${criticalStatus ? "marked as Critical" : "unmarked"}`);
+    await fetchData();
+    return true;
+  };
+
   return {
     customers: customersWithPurchases,
     purchases,
@@ -512,6 +548,8 @@ export function useSupabaseCRM() {
     assignCustomer,
     bulkAssignCustomers,
     toggleDND,
+    toggleCritical,
+    bulkToggleCritical,
     refetch: fetchData,
   };
 }

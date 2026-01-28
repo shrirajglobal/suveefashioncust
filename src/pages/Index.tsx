@@ -109,6 +109,8 @@ const Index = () => {
     assignCustomer,
     bulkAssignCustomers,
     toggleDND,
+    toggleCritical,
+    bulkToggleCritical,
   } = useSupabaseCRM();
 
   // Memoized date range label
@@ -384,6 +386,8 @@ const Index = () => {
                 onAssignCustomer={assignCustomer}
                 onBulkAssign={bulkAssignCustomers}
                 onToggleDND={toggleDND}
+                onToggleCritical={toggleCritical}
+                onBulkToggleCritical={bulkToggleCritical}
                 onPhoneClick={logPhoneClick}
               />
             </section>
