@@ -43,9 +43,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Shield, Users, ArrowLeft, Lock, Unlock, Clock, Phone, IndianRupee, Target, Edit2, Check, X } from "lucide-react";
-import { addDays, format, formatDistanceToNow } from "date-fns";
+import { addDays, format, formatDistanceToNow, startOfMonth, endOfMonth } from "date-fns";
 import { formatINR } from "@/lib/formatters";
-import { startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, subMonths, subQuarters, subYears } from "date-fns";
+import { getCurrentFinancialYearRange, getCurrentFiscalQuarterRange } from "@/lib/financialYear";
 
 type AppRole = "super_admin" | "accounts" | "sales_team";
 type TimePeriod = "monthly" | "quarterly" | "annual";
@@ -88,8 +88,8 @@ const RESTRICTION_DURATIONS = [
 
 const TIME_PERIODS: { value: TimePeriod; label: string; salaryMultiplier: number; targetMultiplier: number }[] = [
   { value: "monthly", label: "This Month", salaryMultiplier: 1, targetMultiplier: 1 },
-  { value: "quarterly", label: "This Quarter", salaryMultiplier: 3, targetMultiplier: 3 },
-  { value: "annual", label: "This Year", salaryMultiplier: 12, targetMultiplier: 12 },
+  { value: "quarterly", label: "This Quarter (FY)", salaryMultiplier: 3, targetMultiplier: 3 },
+  { value: "annual", label: "This Financial Year", salaryMultiplier: 12, targetMultiplier: 12 },
 ];
 
 export default function UserManagement() {
@@ -143,9 +143,11 @@ export default function UserManagement() {
       case "monthly":
         return { start: startOfMonth(now), end: endOfMonth(now) };
       case "quarterly":
-        return { start: startOfQuarter(now), end: endOfQuarter(now) };
+        // Use Indian fiscal quarter (Apr-Jun, Jul-Sep, Oct-Dec, Jan-Mar)
+        return getCurrentFiscalQuarterRange();
       case "annual":
-        return { start: startOfYear(now), end: endOfYear(now) };
+        // Use Indian Financial Year (April to March)
+        return getCurrentFinancialYearRange();
     }
   };
 
