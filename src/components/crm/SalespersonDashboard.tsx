@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Phone, Users, AlertTriangle, Crown, Clock, TrendingUp, BarChart3 } from "lucide-react";
+import { Phone, Users, AlertTriangle, Crown, Clock, TrendingUp, BarChart3, UserX } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -275,7 +275,7 @@ export function SalespersonDashboard() {
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -339,7 +339,73 @@ export function SalespersonDashboard() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Inactive Salespeople Card - Admin Only */}
+        {isAdminOrAccounts && adminMetrics && (
+          <Card className={adminMetrics.salespersonPerformance.filter(sp => sp.callsToday === 0).length > 0 ? "border-destructive/50" : ""}>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-full ${
+                  adminMetrics.salespersonPerformance.filter(sp => sp.callsToday === 0).length > 0 
+                    ? "bg-destructive/10" 
+                    : "bg-accent"
+                }`}>
+                  <UserX className={`h-5 w-5 ${
+                    adminMetrics.salespersonPerformance.filter(sp => sp.callsToday === 0).length > 0 
+                      ? "text-destructive" 
+                      : "text-accent-foreground"
+                  }`} />
+                </div>
+                <div>
+                  <p className={`text-2xl font-bold ${
+                    adminMetrics.salespersonPerformance.filter(sp => sp.callsToday === 0).length > 0 
+                      ? "text-destructive" 
+                      : ""
+                  }`}>
+                    {adminMetrics.salespersonPerformance.filter(sp => sp.callsToday === 0).length}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Inactive Today</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
+
+      {/* Inactive Salespeople Alert - Admin Only */}
+      {isAdminOrAccounts && adminMetrics && adminMetrics.salespersonPerformance.filter(sp => sp.callsToday === 0).length > 0 && (
+        <Card className="border-destructive">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <UserX className="h-5 w-5" />
+              Salespersons with Zero Activity Today
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              These team members have not logged any interactions today
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {adminMetrics.salespersonPerformance
+                .filter(sp => sp.callsToday === 0)
+                .map((sp) => (
+                  <div
+                    key={sp.id}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive/5 border border-destructive/20"
+                  >
+                    <UserX className="h-4 w-4 text-destructive" />
+                    <span className="font-medium text-destructive">{sp.name}</span>
+                    {sp.overdueCount > 0 && (
+                      <Badge variant="destructive" className="text-xs">
+                        {sp.overdueCount} overdue
+                      </Badge>
+                    )}
+                  </div>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Salesperson Performance Table (Admin Only) */}
       {isAdminOrAccounts && adminMetrics && adminMetrics.salespersonPerformance.length > 0 && (
