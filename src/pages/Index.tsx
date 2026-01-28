@@ -14,6 +14,7 @@ import { AddPurchaseForm } from "@/components/crm/AddPurchaseForm";
 import { ImportCSVForm } from "@/components/crm/ImportCSVForm";
 import { BulkWhatsAppDialog } from "@/components/crm/BulkWhatsAppDialog";
 import { RevenueComparisonChart } from "@/components/crm/RevenueComparisonChart";
+import { TodaysCallList } from "@/components/crm/TodaysCallList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
@@ -323,10 +324,11 @@ const Index = () => {
           )}
         </section>
 
-        {/* Tabs for Dashboard / All Customers */}
+        {/* Tabs for Dashboard / Call List / All Customers */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-lg grid-cols-3">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            <TabsTrigger value="calllist">Call List</TabsTrigger>
             <TabsTrigger value="customers">All Customers</TabsTrigger>
           </TabsList>
 
@@ -350,6 +352,10 @@ const Index = () => {
                 ))}
               </div>
             </section>
+          </TabsContent>
+
+          <TabsContent value="calllist">
+            <TodaysCallList onPhoneClick={logPhoneClick} />
           </TabsContent>
 
           <TabsContent value="customers">
