@@ -117,8 +117,11 @@ export type Database = {
           full_name: string
           id: string
           is_restricted: boolean
+          mobile_no: string | null
           restricted_until: string | null
           restriction_reason: string | null
+          salary: number | null
+          sales_target: number | null
           updated_at: string
           user_id: string
         }
@@ -128,8 +131,11 @@ export type Database = {
           full_name: string
           id?: string
           is_restricted?: boolean
+          mobile_no?: string | null
           restricted_until?: string | null
           restriction_reason?: string | null
+          salary?: number | null
+          sales_target?: number | null
           updated_at?: string
           user_id: string
         }
@@ -139,8 +145,11 @@ export type Database = {
           full_name?: string
           id?: string
           is_restricted?: boolean
+          mobile_no?: string | null
           restricted_until?: string | null
           restriction_reason?: string | null
+          salary?: number | null
+          sales_target?: number | null
           updated_at?: string
           user_id?: string
         }

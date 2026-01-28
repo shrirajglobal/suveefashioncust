@@ -42,8 +42,9 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Shield, Users, ArrowLeft, Lock, Unlock, Clock } from "lucide-react";
+import { Shield, Users, ArrowLeft, Lock, Unlock, Clock, Phone, IndianRupee, Target, Edit2, Check, X } from "lucide-react";
 import { addDays, format, formatDistanceToNow } from "date-fns";
+import { formatINR } from "@/lib/formatters";
 
 type AppRole = "super_admin" | "accounts" | "sales_team";
 
@@ -56,6 +57,10 @@ interface UserWithRole {
   isRestricted: boolean;
   restrictedUntil: string | null;
   restrictionReason: string | null;
+  mobileNo: string | null;
+  salary: number | null;
+  salesTarget: number | null;
+  targetAchieved: number;
 }
 
 const ROLE_LABELS: Record<AppRole, string> = {
@@ -97,6 +102,16 @@ export default function UserManagement() {
   const [restrictionReason, setRestrictionReason] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Edit profile dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
+  const [editForm, setEditForm] = useState({
+    fullName: "",
+    email: "",
+    mobileNo: "",
+    salary: "",
+  });
+
   // Only super_admin can access this page
   const canManageRoles = userRole === "super_admin";
 
@@ -128,6 +143,22 @@ export default function UserManagement() {
 
       if (rolesError) throw rolesError;
 
+      // Fetch total sales achieved by each salesperson
+      const { data: salesData, error: salesError } = await supabase
+        .from("customer_analytics")
+        .select("assigned_salesperson_id, total_lifetime_sales");
+
+      if (salesError) throw salesError;
+
+      // Aggregate sales by salesperson
+      const salesBySalesperson = new Map<string, number>();
+      salesData?.forEach((item) => {
+        if (item.assigned_salesperson_id) {
+          const current = salesBySalesperson.get(item.assigned_salesperson_id) || 0;
+          salesBySalesperson.set(item.assigned_salesperson_id, current + (item.total_lifetime_sales || 0));
+        }
+      });
+
       const roleMap = new Map(roles?.map((r) => [r.user_id, r.role]) || []);
 
       const usersWithRoles: UserWithRole[] = (profiles || []).map((profile) => ({
@@ -139,6 +170,10 @@ export default function UserManagement() {
         isRestricted: profile.is_restricted || false,
         restrictedUntil: profile.restricted_until,
         restrictionReason: profile.restriction_reason,
+        mobileNo: profile.mobile_no || null,
+        salary: profile.salary ? Number(profile.salary) : null,
+        salesTarget: profile.sales_target ? Number(profile.sales_target) : null,
+        targetAchieved: salesBySalesperson.get(profile.user_id) || 0,
       }));
 
       setUsers(usersWithRoles);
@@ -252,6 +287,44 @@ export default function UserManagement() {
     }
   };
 
+  const openEditDialog = (user: UserWithRole) => {
+    setEditingUser(user);
+    setEditForm({
+      fullName: user.fullName || "",
+      email: user.email || "",
+      mobileNo: user.mobileNo || "",
+      salary: user.salary?.toString() || "",
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editingUser) return;
+
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          full_name: editForm.fullName,
+          email: editForm.email,
+          mobile_no: editForm.mobileNo || null,
+          salary: editForm.salary ? parseFloat(editForm.salary) : null,
+        })
+        .eq("user_id", editingUser.id);
+
+      if (error) throw error;
+
+      toast.success("Profile updated successfully");
+      setEditDialogOpen(false);
+      fetchUsers();
+    } catch (error: any) {
+      toast.error("Failed to update profile: " + error.message);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -313,19 +386,22 @@ export default function UserManagement() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>User</TableHead>
+                <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Current Role</TableHead>
+                <TableHead>Mobile No.</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Salary</TableHead>
+                <TableHead>Sales Target</TableHead>
+                <TableHead>Target Achieved</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Joined</TableHead>
                 {canManageRoles && <TableHead>Change Role</TableHead>}
-                {canManageRoles && <TableHead>Access Control</TableHead>}
+                {canManageRoles && <TableHead>Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={12} className="text-center py-8">
                     No users found
                   </TableCell>
                 </TableRow>
@@ -349,6 +425,16 @@ export default function UserManagement() {
                       </TableCell>
                       <TableCell>{user.email || "—"}</TableCell>
                       <TableCell>
+                        {user.mobileNo ? (
+                          <div className="flex items-center gap-1">
+                            <Phone className="h-3 w-3 text-muted-foreground" />
+                            {user.mobileNo}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         {user.role ? (
                           <Badge
                             variant={
@@ -363,6 +449,56 @@ export default function UserManagement() {
                           </Badge>
                         ) : (
                           <Badge variant="destructive">No Role</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {user.salary ? (
+                          <div className="flex items-center gap-1">
+                            <IndianRupee className="h-3 w-3 text-muted-foreground" />
+                            {formatINR(user.salary).replace("₹", "")}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {user.salesTarget ? (
+                          <div className="flex items-center gap-1">
+                            <Target className="h-3 w-3 text-muted-foreground" />
+                            {formatINR(user.salesTarget)}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {user.role === "sales_team" ? (
+                          <div className="space-y-1">
+                            <div className="font-medium">{formatINR(user.targetAchieved)}</div>
+                            {user.salesTarget && user.salesTarget > 0 && (
+                              <div className="flex items-center gap-2">
+                                <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full ${
+                                      (user.targetAchieved / user.salesTarget) >= 1 
+                                        ? "bg-green-500" 
+                                        : (user.targetAchieved / user.salesTarget) >= 0.5 
+                                        ? "bg-yellow-500" 
+                                        : "bg-destructive"
+                                    }`}
+                                    style={{ 
+                                      width: `${Math.min((user.targetAchieved / user.salesTarget) * 100, 100)}%` 
+                                    }}
+                                  />
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {Math.round((user.targetAchieved / user.salesTarget) * 100)}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -382,7 +518,7 @@ export default function UserManagement() {
                             )}
                             {user.restrictionReason && (
                               <p className="text-xs text-muted-foreground italic">
-                                Reason: {user.restrictionReason}
+                                {user.restrictionReason}
                               </p>
                             )}
                           </div>
@@ -391,9 +527,6 @@ export default function UserManagement() {
                             Active
                           </Badge>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        {new Date(user.createdAt).toLocaleDateString()}
                       </TableCell>
                       {canManageRoles && (
                         <TableCell>
@@ -421,31 +554,39 @@ export default function UserManagement() {
                       )}
                       {canManageRoles && (
                         <TableCell>
-                          {user.role === "sales_team" && !isSelf && (
-                            effectivelyRestricted ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleRemoveRestriction(user.id)}
-                                disabled={isUpdating}
-                                className="text-green-600 border-green-600 hover:bg-green-50"
-                              >
-                                <Unlock className="h-4 w-4 mr-1" />
-                                Restore Access
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openRestrictDialog(user)}
-                                disabled={isUpdating}
-                                className="text-destructive border-destructive hover:bg-destructive/10"
-                              >
-                                <Lock className="h-4 w-4 mr-1" />
-                                Restrict
-                              </Button>
-                            )
-                          )}
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openEditDialog(user)}
+                              disabled={isUpdating}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            {user.role === "sales_team" && !isSelf && (
+                              effectivelyRestricted ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRemoveRestriction(user.id)}
+                                  disabled={isUpdating}
+                                  className="text-green-600 border-green-600 hover:bg-green-50"
+                                >
+                                  <Unlock className="h-4 w-4" />
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openRestrictDialog(user)}
+                                  disabled={isUpdating}
+                                  className="text-destructive border-destructive hover:bg-destructive/10"
+                                >
+                                  <Lock className="h-4 w-4" />
+                                </Button>
+                              )
+                            )}
+                          </div>
                         </TableCell>
                       )}
                     </TableRow>
@@ -547,6 +688,86 @@ export default function UserManagement() {
               disabled={isUpdating}
             >
               {isUpdating ? "Restricting..." : "Restrict Access"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit2 className="h-5 w-5" />
+              Edit Sales Team Member
+            </DialogTitle>
+            <DialogDescription>
+              Update profile information for {editingUser?.fullName || editingUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Name</Label>
+              <Input
+                id="fullName"
+                placeholder="Full name"
+                value={editForm.fullName}
+                onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email ID</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="email@example.com"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mobileNo">Mobile No.</Label>
+              <Input
+                id="mobileNo"
+                placeholder="10-digit mobile number"
+                value={editForm.mobileNo}
+                onChange={(e) => setEditForm({ ...editForm, mobileNo: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="salary">Salary (₹/month)</Label>
+              <Input
+                id="salary"
+                type="number"
+                placeholder="Monthly salary in rupees"
+                value={editForm.salary}
+                onChange={(e) => setEditForm({ ...editForm, salary: e.target.value })}
+              />
+              {editForm.salary && (
+                <p className="text-xs text-muted-foreground">
+                  Sales Target: {formatINR(parseFloat(editForm.salary) * 30)} (Salary × 30)
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditDialogOpen(false)}
+              disabled={isUpdating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveProfile}
+              disabled={isUpdating || !editForm.fullName}
+            >
+              {isUpdating ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
