@@ -61,6 +61,7 @@ export function LogInteractionDialog({
   const [interactionType, setInteractionType] = useState<string>("phone_call");
   const [outcome, setOutcome] = useState<string>("successful");
   const [notes, setNotes] = useState("");
+  const [notesError, setNotesError] = useState(false);
   const [nextFollowupDate, setNextFollowupDate] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -72,9 +73,11 @@ export function LogInteractionDialog({
     }
 
     if (!notes.trim()) {
-      toast.error("Notes are required");
+      setNotesError(true);
+      toast.error("Notes are required - please describe the interaction");
       return;
     }
+    setNotesError(false);
 
     setIsSubmitting(true);
 
@@ -91,12 +94,13 @@ export function LogInteractionDialog({
 
       if (error) throw error;
 
-      toast.success("Interaction logged successfully!");
+      toast.success("Interaction logged! Customer's last contacted date updated.");
       
       // Reset form
       setInteractionType("phone_call");
       setOutcome("successful");
       setNotes("");
+      setNotesError(false);
       setNextFollowupDate("");
       
       onSuccess?.();
@@ -161,17 +165,24 @@ export function LogInteractionDialog({
 
           {/* Notes (Mandatory) */}
           <div className="space-y-2">
-            <Label htmlFor="notes">
+            <Label htmlFor="notes" className={notesError ? "text-destructive" : ""}>
               Notes <span className="text-destructive">*</span>
             </Label>
             <Textarea
               id="notes"
-              placeholder="Enter details about the interaction..."
+              placeholder="Enter details about the interaction (required)..."
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e) => {
+                setNotes(e.target.value);
+                if (e.target.value.trim()) setNotesError(false);
+              }}
               rows={3}
               required
+              className={notesError ? "border-destructive focus-visible:ring-destructive" : ""}
             />
+            {notesError && (
+              <p className="text-xs text-destructive">Notes cannot be empty</p>
+            )}
           </div>
 
           {/* Next Follow-up Date */}
