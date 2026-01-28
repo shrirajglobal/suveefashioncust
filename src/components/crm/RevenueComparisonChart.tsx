@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { formatINR } from "@/lib/formatters";
+import { getFinancialYear, getFYMonthIndex, formatFYLabel, FY_MONTHS } from "@/lib/financialYear";
 import { Purchase } from "@/types/crm";
 
 interface SalesTeamMember {
@@ -22,28 +23,7 @@ interface RevenueComparisonChartProps {
 
 type ChartType = "yearly-comparison" | "salesmen-comparison";
 
-// Financial year months (April to March)
-const FY_MONTHS = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
-
-// Get financial year for a date (e.g., April 2024 - March 2025 = FY 2024-25)
-const getFinancialYear = (date: Date): number => {
-  const month = date.getMonth();
-  const year = date.getFullYear();
-  // If month is Jan-Mar (0-2), it belongs to previous FY
-  return month < 3 ? year - 1 : year;
-};
-
-// Get financial year month index (0 = April, 11 = March)
-const getFYMonthIndex = (date: Date): number => {
-  const month = date.getMonth();
-  // Convert calendar month to FY month (Apr=0, May=1, ..., Mar=11)
-  return month >= 3 ? month - 3 : month + 9;
-};
-
-// Format financial year label (e.g., "FY 2024-25")
-const formatFYLabel = (startYear: number): string => {
-  return `FY ${startYear}-${(startYear + 1).toString().slice(-2)}`;
-};
+// Financial year utilities are now imported from @/lib/financialYear
 
 export const RevenueComparisonChart = ({
   purchases,

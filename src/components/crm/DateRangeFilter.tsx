@@ -23,35 +23,10 @@ export function getDateRangeLabel(range: DateRangeType): string {
   }
 }
 
-// Get the current Indian fiscal quarter (Apr-Jun, Jul-Sep, Oct-Dec, Jan-Mar)
-export function getCurrentQuarterRange(): { start: Date; end: Date } {
-  const now = new Date();
-  const month = now.getMonth(); // 0-indexed
-  const year = now.getFullYear();
+import { getCurrentFiscalQuarterRange, getCurrentFinancialYearRange } from "@/lib/financialYear";
 
-  let quarterStart: Date;
-  let quarterEnd: Date;
-
-  if (month >= 3 && month <= 5) {
-    // Q1: April - June
-    quarterStart = new Date(year, 3, 1);
-    quarterEnd = new Date(year, 5, 30, 23, 59, 59, 999);
-  } else if (month >= 6 && month <= 8) {
-    // Q2: July - September
-    quarterStart = new Date(year, 6, 1);
-    quarterEnd = new Date(year, 8, 30, 23, 59, 59, 999);
-  } else if (month >= 9 && month <= 11) {
-    // Q3: October - December
-    quarterStart = new Date(year, 9, 1);
-    quarterEnd = new Date(year, 11, 31, 23, 59, 59, 999);
-  } else {
-    // Q4: January - March
-    quarterStart = new Date(year, 0, 1);
-    quarterEnd = new Date(year, 2, 31, 23, 59, 59, 999);
-  }
-
-  return { start: quarterStart, end: quarterEnd };
-}
+// Re-export for backward compatibility
+export const getCurrentQuarterRange = getCurrentFiscalQuarterRange;
 
 export function getDateRange(rangeType: DateRangeType): { start: Date; end: Date } {
   const now = new Date();
@@ -71,13 +46,12 @@ export function getDateRange(rangeType: DateRangeType): { start: Date; end: Date
       return { start, end };
     }
     case "quarter": {
-      return getCurrentQuarterRange();
+      // Indian fiscal quarter (Apr-Jun, Jul-Sep, Oct-Dec, Jan-Mar)
+      return getCurrentFiscalQuarterRange();
     }
     case "1y": {
-      const start = new Date(now);
-      start.setFullYear(start.getFullYear() - 1);
-      start.setHours(0, 0, 0, 0);
-      return { start, end };
+      // Use Indian Financial Year (April to March)
+      return getCurrentFinancialYearRange();
     }
     case "month":
     default: {
