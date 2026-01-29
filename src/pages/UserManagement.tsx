@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Shield, Users, ArrowLeft, Lock, Unlock, Clock, Phone, IndianRupee, Target, Edit2, Check, X } from "lucide-react";
+import { Shield, Users, ArrowLeft, Lock, Unlock, Clock, Phone, IndianRupee, Target, Edit2, Check, X, UserPlus } from "lucide-react";
 import { addDays, format, formatDistanceToNow, startOfMonth, endOfMonth } from "date-fns";
 import { formatINR } from "@/lib/formatters";
 import { getCurrentFinancialYearRange, getCurrentFiscalQuarterRange } from "@/lib/financialYear";
@@ -116,6 +116,17 @@ export default function UserManagement() {
   const [editForm, setEditForm] = useState({
     fullName: "",
     email: "",
+    mobileNo: "",
+    salary: "",
+  });
+
+  // Add salesperson dialog state
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [addForm, setAddForm] = useState({
+    email: "",
+    password: "",
+    fullName: "",
     mobileNo: "",
     salary: "",
   });
@@ -368,6 +379,48 @@ export default function UserManagement() {
     }
   };
 
+  const handleCreateSalesperson = async () => {
+    if (!addForm.email || !addForm.password || !addForm.fullName) {
+      toast.error("Email, password, and full name are required");
+      return;
+    }
+
+    if (addForm.password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const response = await supabase.functions.invoke("create-salesperson", {
+        body: {
+          email: addForm.email.trim(),
+          password: addForm.password,
+          fullName: addForm.fullName.trim(),
+          mobileNo: addForm.mobileNo.trim() || undefined,
+          salary: addForm.salary ? parseFloat(addForm.salary) : undefined,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data?.error) {
+        throw new Error(response.data.error);
+      }
+
+      toast.success(`Salesperson "${addForm.fullName}" created successfully`);
+      setAddDialogOpen(false);
+      setAddForm({ email: "", password: "", fullName: "", mobileNo: "", salary: "" });
+      fetchUsers();
+    } catch (error: any) {
+      toast.error("Failed to create salesperson: " + error.message);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -404,6 +457,12 @@ export default function UserManagement() {
               </p>
             </div>
           </div>
+          {canManageRoles && (
+            <Button onClick={() => setAddDialogOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Add Salesperson
+            </Button>
+          )}
         </div>
 
         {/* Time Period Filter */}
@@ -847,6 +906,100 @@ export default function UserManagement() {
               disabled={isUpdating || !editForm.fullName}
             >
               {isUpdating ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Salesperson Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" />
+              Add New Salesperson
+            </DialogTitle>
+            <DialogDescription>
+              Create a new sales team member. They will be assigned the Sales Team role automatically.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="add-fullName">Full Name *</Label>
+              <Input
+                id="add-fullName"
+                placeholder="Enter full name"
+                value={addForm.fullName}
+                onChange={(e) => setAddForm({ ...addForm, fullName: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="add-email">Email ID *</Label>
+              <Input
+                id="add-email"
+                type="email"
+                placeholder="email@example.com"
+                value={addForm.email}
+                onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="add-password">Password *</Label>
+              <Input
+                id="add-password"
+                type="password"
+                placeholder="Minimum 6 characters"
+                value={addForm.password}
+                onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="add-mobileNo">Mobile No.</Label>
+              <Input
+                id="add-mobileNo"
+                placeholder="10-digit mobile number"
+                value={addForm.mobileNo}
+                onChange={(e) => setAddForm({ ...addForm, mobileNo: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="add-salary">Salary (₹/month)</Label>
+              <Input
+                id="add-salary"
+                type="number"
+                placeholder="Monthly salary in rupees"
+                value={addForm.salary}
+                onChange={(e) => setAddForm({ ...addForm, salary: e.target.value })}
+              />
+              {addForm.salary && (
+                <p className="text-xs text-muted-foreground">
+                  Sales Target: {formatINR(parseFloat(addForm.salary) * 30)} (Salary × 30)
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAddDialogOpen(false);
+                setAddForm({ email: "", password: "", fullName: "", mobileNo: "", salary: "" });
+              }}
+              disabled={isCreating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateSalesperson}
+              disabled={isCreating || !addForm.email || !addForm.password || !addForm.fullName}
+            >
+              {isCreating ? "Creating..." : "Create Salesperson"}
             </Button>
           </DialogFooter>
         </DialogContent>
