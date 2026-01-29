@@ -3,6 +3,7 @@ import { Users, ShoppingBag, IndianRupee, TrendingUp, Filter } from "lucide-reac
 import { useSupabaseCRM } from "@/hooks/useSupabaseCRM";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUsageTracking } from "@/hooks/useUsageTracking";
+import { useWelcomeMetrics } from "@/hooks/useWelcomeMetrics";
 import { formatINR, getDaysBetween } from "@/lib/formatters";
 import { SEGMENTS, CustomerWithPurchases, SegmentPeriod } from "@/types/crm";
 import { Header } from "@/components/crm/Header";
@@ -16,6 +17,7 @@ import { BulkWhatsAppDialog } from "@/components/crm/BulkWhatsAppDialog";
 import { RevenueComparisonChart } from "@/components/crm/RevenueComparisonChart";
 import { TodaysCallList } from "@/components/crm/TodaysCallList";
 import { SalespersonDashboard } from "@/components/crm/SalespersonDashboard";
+import { WelcomeMessage } from "@/components/crm/WelcomeMessage";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
@@ -82,6 +84,7 @@ LoadingSkeleton.displayName = "LoadingSkeleton";
 const Index = () => {
   const { isAdminOrAccounts } = useAuth();
   const { logPhoneClick } = useUsageTracking();
+  const { metrics: welcomeMetrics, showWelcome } = useWelcomeMetrics();
   const [dateRange, setDateRange] = useState<DateRangeType>("month");
   const [selectedSalesman, setSelectedSalesman] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<string>(() => {
@@ -295,6 +298,20 @@ const Index = () => {
             </div>
           </div>
         </section>
+
+        {/* Welcome Message for Salespeople - visible immediately on login */}
+        {showWelcome && welcomeMetrics && (
+          <WelcomeMessage
+            userName={welcomeMetrics.userName}
+            callsMadeToday={welcomeMetrics.callsMadeToday}
+            customersContactedToday={welcomeMetrics.customersContactedToday}
+            overdueCount={welcomeMetrics.overdueCount}
+            highValueOverdueCount={welcomeMetrics.highValueOverdueCount}
+            avgDailyCalls={welcomeMetrics.avgDailyCalls}
+            salesTarget={welcomeMetrics.salesTarget}
+            salesAchieved={welcomeMetrics.salesAchieved}
+          />
+        )}
 
         {/* Stats Overview - Memoized */}
         <StatsSection stats={filteredStats} dateRangeLabel={dateRangeLabel} />
