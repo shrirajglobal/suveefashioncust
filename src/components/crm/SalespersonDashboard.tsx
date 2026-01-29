@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Phone, Users, AlertTriangle, Crown, Clock, TrendingUp, BarChart3, UserX } from "lucide-react";
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { formatINR } from "@/lib/formatters";
-import { startOfDay, subDays, formatDistanceToNow } from "date-fns";
+import { startOfDay, subDays, startOfMonth, formatDistanceToNow } from "date-fns";
 import {
   Table,
   TableBody,
@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { InteractionQualityCard, QualityMetrics } from "./InteractionQualityCard";
+import { WelcomeMessage } from "./WelcomeMessage";
 
 interface DashboardMetrics {
   callsMadeToday: number;
@@ -58,6 +59,13 @@ interface AdminMetrics {
   qualityMetrics: QualityMetrics[];
 }
 
+interface UserProfileData {
+  fullName: string;
+  salesTarget: number;
+  salesAchieved: number;
+  avgDailyCalls: number;
+}
+
 export function SalespersonDashboard() {
   const { user, isAdminOrAccounts } = useAuth();
   const [metrics, setMetrics] = useState<DashboardMetrics>({
@@ -70,6 +78,7 @@ export function SalespersonDashboard() {
   });
   const [adminMetrics, setAdminMetrics] = useState<AdminMetrics | null>(null);
   const [qualityMetrics, setQualityMetrics] = useState<QualityMetrics[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -94,6 +103,15 @@ export function SalespersonDashboard() {
     };
 
     const fetchSalespersonMetrics = async (todayStart: string) => {
+      // Fetch user profile for welcome message
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("full_name, sales_target")
+        .eq("user_id", user!.id)
+        .single();
+
+      if (profileError) console.error("Profile fetch error:", profileError.message);
+
       // Fetch calls made today by this user
       const { data: todayInteractions, error: interactionsError } = await supabase
         .from("interactions")
@@ -106,6 +124,46 @@ export function SalespersonDashboard() {
       const callsMadeToday = todayInteractions?.length || 0;
       const uniqueCustomersToday = new Set(todayInteractions?.map(i => i.customer_id) || []);
       const customersContactedToday = uniqueCustomersToday.size;
+
+      // Fetch last 30 days of interactions for average calculation
+      const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
+      const { data: recentInteractions, error: recentError } = await supabase
+        .from("interactions")
+        .select("id")
+        .gte("interaction_datetime", thirtyDaysAgo)
+        .eq("salesperson_id", user!.id);
+
+      if (recentError) console.error("Recent interactions error:", recentError.message);
+      const avgDailyCalls = (recentInteractions?.length || 0) / 30;
+
+      // Fetch this month's sales for target progress
+      const monthStart = startOfMonth(new Date()).toISOString().split("T")[0];
+      const { data: customerIds, error: customerIdsError } = await supabase
+        .from("customers")
+        .select("id")
+        .eq("assigned_to", user!.id);
+
+      if (customerIdsError) console.error("Customer IDs error:", customerIdsError.message);
+
+      let salesAchieved = 0;
+      if (customerIds && customerIds.length > 0) {
+        const { data: monthlyTransactions, error: transactionsError } = await supabase
+          .from("transactions")
+          .select("amount")
+          .in("customer_id", customerIds.map(c => c.id))
+          .gte("transaction_date", monthStart);
+
+        if (transactionsError) console.error("Transactions error:", transactionsError.message);
+        salesAchieved = (monthlyTransactions || []).reduce((sum, t) => sum + Number(t.amount), 0);
+      }
+
+      // Set user profile data for welcome message
+      setUserProfile({
+        fullName: profileData?.full_name || "Salesperson",
+        salesTarget: Number(profileData?.sales_target) || 0,
+        salesAchieved,
+        avgDailyCalls: Math.round(avgDailyCalls * 10) / 10,
+      });
 
       // Fetch customer analytics
       const { data: analyticsData, error: analyticsError } = await supabase
@@ -413,6 +471,20 @@ export function SalespersonDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Welcome Message for Salespeople */}
+      {!isAdminOrAccounts && userProfile && (
+        <WelcomeMessage
+          userName={userProfile.fullName}
+          callsMadeToday={metrics.callsMadeToday}
+          customersContactedToday={metrics.customersContactedToday}
+          overdueCount={metrics.customersNotContacted15Days.length}
+          highValueOverdueCount={metrics.highValueOverdue.length}
+          avgDailyCalls={userProfile.avgDailyCalls}
+          salesTarget={userProfile.salesTarget}
+          salesAchieved={userProfile.salesAchieved}
+        />
+      )}
+
       {/* Admin Header */}
       {isAdminOrAccounts && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
