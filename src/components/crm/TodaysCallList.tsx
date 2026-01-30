@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatINR } from "@/lib/formatters";
 import { LogInteractionDialog } from "./LogInteractionDialog";
 import { format } from "date-fns";
+import { DateRangeFilter, DateRangeType, getDateRange, getDateRangeLabel } from "./DateRangeFilter";
 
 interface CustomerAnalytics {
   customer_id: string;
@@ -41,6 +42,16 @@ export function TodaysCallList({ onPhoneClick }: TodaysCallListProps) {
   const [customers, setCustomers] = useState<CustomerWithStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; name: string } | null>(null);
+  const [dateRange, setDateRange] = useState<DateRangeType>("today");
+  const [customDate, setCustomDate] = useState<Date | undefined>(undefined);
+
+  // Get the selected date for querying
+  const selectedDate = useMemo(() => {
+    const { start } = getDateRange(dateRange, customDate);
+    return start;
+  }, [dateRange, customDate]);
+
+  const dateRangeLabel = useMemo(() => getDateRangeLabel(dateRange, customDate), [dateRange, customDate]);
 
   const fetchData = async () => {
     if (!user) return;
@@ -48,11 +59,9 @@ export function TodaysCallList({ onPhoneClick }: TodaysCallListProps) {
     try {
       setIsLoading(true);
       
-      // Get today's date range
-      const today = new Date();
-      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
-      const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
-      const todayDateStr = format(today, "yyyy-MM-dd");
+      // Get the selected date range
+      const { start, end } = getDateRange(dateRange, customDate);
+      const dateStr = format(start, "yyyy-MM-dd");
 
       // Fetch customer analytics (all non-DND customers)
       const { data: analyticsData, error: analyticsError } = await supabase
@@ -69,28 +78,28 @@ export function TodaysCallList({ onPhoneClick }: TodaysCallListProps) {
         return;
       }
 
-      // Fetch today's interactions to know who was contacted today
-      const { data: todayInteractions, error: interactionsError } = await supabase
+      // Fetch interactions for the selected date to know who was contacted
+      const { data: dateInteractions, error: interactionsError } = await supabase
         .from("interactions")
         .select("customer_id")
         .in("customer_id", customerIds)
-        .gte("interaction_datetime", todayStart.toISOString())
-        .lte("interaction_datetime", todayEnd.toISOString());
+        .gte("interaction_datetime", start.toISOString())
+        .lte("interaction_datetime", end.toISOString());
 
       if (interactionsError) throw interactionsError;
 
-      // Count interactions per customer today
-      const todayContactMap = new Map<string, number>();
-      (todayInteractions || []).forEach((interaction) => {
-        const count = todayContactMap.get(interaction.customer_id) || 0;
-        todayContactMap.set(interaction.customer_id, count + 1);
+      // Count interactions per customer for selected date
+      const dateContactMap = new Map<string, number>();
+      (dateInteractions || []).forEach((interaction) => {
+        const count = dateContactMap.get(interaction.customer_id) || 0;
+        dateContactMap.set(interaction.customer_id, count + 1);
       });
 
-      // Fetch customers with next_followup_date = today
+      // Fetch customers with next_followup_date = selected date
       const { data: followupData, error: followupError } = await supabase
         .from("interactions")
         .select("customer_id")
-        .eq("next_followup_date", todayDateStr)
+        .eq("next_followup_date", dateStr)
         .in("customer_id", customerIds);
 
       if (followupError) throw followupError;
@@ -101,8 +110,8 @@ export function TodaysCallList({ onPhoneClick }: TodaysCallListProps) {
       const enrichedCustomers: CustomerWithStatus[] = (analyticsData || [])
         .map((customer) => ({
           ...customer,
-          contactedToday: todayContactMap.has(customer.customer_id),
-          todayInteractionCount: todayContactMap.get(customer.customer_id) || 0,
+          contactedToday: dateContactMap.has(customer.customer_id),
+          todayInteractionCount: dateContactMap.get(customer.customer_id) || 0,
           hasFollowupToday: followupSet.has(customer.customer_id),
         }))
         .filter((customer) => {
@@ -166,7 +175,7 @@ export function TodaysCallList({ onPhoneClick }: TodaysCallListProps) {
 
   useEffect(() => {
     fetchData();
-  }, [user]);
+  }, [user, dateRange, customDate]);
 
   const handleInteractionLogged = () => {
     setSelectedCustomer(null);
@@ -231,16 +240,19 @@ export function TodaysCallList({ onPhoneClick }: TodaysCallListProps) {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Phone className="h-5 w-5" />
-                Today's Call List
+                Call List
               </CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                {pendingCalls.length} pending • {completedCalls.length} completed
+                {dateRangeLabel}: {pendingCalls.length} pending • {completedCalls.length} completed
               </p>
             </div>
-            <Badge variant="outline" className="w-fit">
-              <Calendar className="h-3 w-3 mr-1" />
-              {format(new Date(), "dd MMM yyyy")}
-            </Badge>
+            <DateRangeFilter
+              value={dateRange}
+              onChange={setDateRange}
+              customDate={customDate}
+              onCustomDateChange={setCustomDate}
+              showDayFilters
+            />
           </div>
         </CardHeader>
         <CardContent>
