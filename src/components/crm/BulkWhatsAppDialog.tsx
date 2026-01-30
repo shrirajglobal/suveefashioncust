@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { MessageCircle, Send, CheckCircle, Phone, PhoneOff, Users } from "lucide-react";
 import { CustomerWithPurchases, SEGMENTS, SegmentPeriod } from "@/types/crm";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -22,8 +23,8 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-// Pre-defined message templates for each segment (without emojis for better compatibility)
-const MESSAGE_TEMPLATES: Record<string, string> = {
+// Fallback message templates (used if DB fetch fails)
+const FALLBACK_TEMPLATES: Record<string, string> = {
   "30d": `Hi {name}!
 
 It's been a while since your last visit to Suvee Fashion. We miss you!
@@ -75,8 +76,44 @@ export function BulkWhatsAppDialog({
 }: BulkWhatsAppDialogProps) {
   const [open, setOpen] = useState(false);
   const [selectedSegment, setSelectedSegment] = useState(initialSegment || "30d");
-  const [message, setMessage] = useState(MESSAGE_TEMPLATES[initialSegment || "30d"]);
+  const [templates, setTemplates] = useState<Record<string, string>>(FALLBACK_TEMPLATES);
+  const [message, setMessage] = useState(FALLBACK_TEMPLATES[initialSegment || "30d"]);
   const [sentCustomers, setSentCustomers] = useState<Set<string>>(new Set());
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
+
+  // Fetch templates from database when dialog opens
+  useEffect(() => {
+    if (open && !templatesLoaded) {
+      fetchTemplates();
+    }
+  }, [open, templatesLoaded]);
+
+  const fetchTemplates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("whatsapp_templates")
+        .select("segment_key, message_template");
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const templatesMap: Record<string, string> = {};
+        data.forEach((t) => {
+          templatesMap[t.segment_key] = t.message_template;
+        });
+        setTemplates(templatesMap);
+        // Update current message if we have a template for the selected segment
+        if (templatesMap[selectedSegment]) {
+          setMessage(templatesMap[selectedSegment]);
+        }
+      }
+      setTemplatesLoaded(true);
+    } catch (error) {
+      console.error("Failed to fetch templates:", error);
+      // Fall back to hardcoded templates
+      setTemplatesLoaded(true);
+    }
+  };
 
   // Filter customers by segment and exclude DND
   const eligibleCustomers = useMemo(() => {
@@ -100,7 +137,7 @@ export function BulkWhatsAppDialog({
 
   const handleSegmentChange = (value: string) => {
     setSelectedSegment(value);
-    setMessage(MESSAGE_TEMPLATES[value] || MESSAGE_TEMPLATES["30d"]);
+    setMessage(templates[value] || FALLBACK_TEMPLATES[value] || FALLBACK_TEMPLATES["30d"]);
     setSentCustomers(new Set());
   };
 
