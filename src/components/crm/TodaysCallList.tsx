@@ -1,14 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Phone, MessageSquarePlus, IndianRupee, Clock, User } from "lucide-react";
+import { Phone, MessageSquarePlus, IndianRupee, Clock, User, Calendar, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { formatINR } from "@/lib/formatters";
 import { LogInteractionDialog } from "./LogInteractionDialog";
-import { DateRangeFilter, DateRangeType, getDateRangeLabel } from "./DateRangeFilter";
 import { format } from "date-fns";
 
 interface CustomerAnalytics {
@@ -24,91 +23,111 @@ interface CustomerAnalytics {
   last_order_date: string | null;
   priority_score: number;
   dnd: boolean;
-}
-
-interface LastInteraction {
-  customer_id: string;
-  notes: string;
-  interaction_datetime: string;
-  interaction_type: string;
-  interaction_outcome: string;
+  is_critical?: boolean;
 }
 
 interface TodaysCallListProps {
   onPhoneClick?: () => void;
 }
 
+type CustomerWithStatus = CustomerAnalytics & {
+  contactedToday: boolean;
+  hasFollowupToday: boolean;
+  todayInteractionCount: number;
+};
+
 export function TodaysCallList({ onPhoneClick }: TodaysCallListProps) {
   const { user } = useAuth();
-  const [customers, setCustomers] = useState<CustomerAnalytics[]>([]);
-  const [dayInteractions, setDayInteractions] = useState<Map<string, LastInteraction[]>>(new Map());
+  const [customers, setCustomers] = useState<CustomerWithStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; name: string } | null>(null);
-  
-  // Date filter state
-  const [dateFilter, setDateFilter] = useState<DateRangeType>("today");
-  const [customDate, setCustomDate] = useState<Date | undefined>(undefined);
-
-  // Calculate the selected date based on filter
-  const selectedDate = useMemo(() => {
-    const now = new Date();
-    if (dateFilter === "today") {
-      return now;
-    } else if (dateFilter === "yesterday") {
-      const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-      return yesterday;
-    } else if (dateFilter === "custom" && customDate) {
-      return customDate;
-    }
-    return now;
-  }, [dateFilter, customDate]);
 
   const fetchData = async () => {
     if (!user) return;
 
     try {
-      // Fetch customer analytics sorted by priority
+      setIsLoading(true);
+      
+      // Get today's date range
+      const today = new Date();
+      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+      const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+      const todayDateStr = format(today, "yyyy-MM-dd");
+
+      // Fetch customer analytics (all non-DND customers)
       const { data: analyticsData, error: analyticsError } = await supabase
         .from("customer_analytics")
         .select("*")
-        .eq("dnd", false) // Exclude DND customers
-        .order("priority_score", { ascending: false })
-        .order("total_lifetime_sales", { ascending: false })
-        .order("days_since_last_contact", { ascending: false, nullsFirst: false });
+        .eq("dnd", false);
 
       if (analyticsError) throw analyticsError;
 
-      // Fetch interactions for the selected date
       const customerIds = (analyticsData || []).map((c) => c.customer_id);
       
-      if (customerIds.length > 0) {
-        // Build date range for the selected day
-        const dayStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 0, 0, 0, 0);
-        const dayEnd = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 23, 59, 59, 999);
-
-        // Get interactions for the selected day
-        const { data: interactionsData, error: interactionsError } = await supabase
-          .from("interactions")
-          .select("customer_id, notes, interaction_datetime, interaction_type, interaction_outcome")
-          .in("customer_id", customerIds)
-          .gte("interaction_datetime", dayStart.toISOString())
-          .lte("interaction_datetime", dayEnd.toISOString())
-          .order("interaction_datetime", { ascending: false });
-
-        if (!interactionsError && interactionsData) {
-          // Group all interactions by customer_id
-          const interactionsMap = new Map<string, LastInteraction[]>();
-          interactionsData.forEach((interaction) => {
-            const existing = interactionsMap.get(interaction.customer_id) || [];
-            existing.push(interaction);
-            interactionsMap.set(interaction.customer_id, existing);
-          });
-          setDayInteractions(interactionsMap);
-        }
+      if (customerIds.length === 0) {
+        setCustomers([]);
+        return;
       }
 
-      setCustomers(analyticsData || []);
+      // Fetch today's interactions to know who was contacted today
+      const { data: todayInteractions, error: interactionsError } = await supabase
+        .from("interactions")
+        .select("customer_id")
+        .in("customer_id", customerIds)
+        .gte("interaction_datetime", todayStart.toISOString())
+        .lte("interaction_datetime", todayEnd.toISOString());
+
+      if (interactionsError) throw interactionsError;
+
+      // Count interactions per customer today
+      const todayContactMap = new Map<string, number>();
+      (todayInteractions || []).forEach((interaction) => {
+        const count = todayContactMap.get(interaction.customer_id) || 0;
+        todayContactMap.set(interaction.customer_id, count + 1);
+      });
+
+      // Fetch customers with next_followup_date = today
+      const { data: followupData, error: followupError } = await supabase
+        .from("interactions")
+        .select("customer_id")
+        .eq("next_followup_date", todayDateStr)
+        .in("customer_id", customerIds);
+
+      if (followupError) throw followupError;
+
+      const followupSet = new Set((followupData || []).map((f) => f.customer_id));
+
+      // Combine data and sort
+      const enrichedCustomers: CustomerWithStatus[] = (analyticsData || []).map((customer) => ({
+        ...customer,
+        contactedToday: todayContactMap.has(customer.customer_id),
+        todayInteractionCount: todayContactMap.get(customer.customer_id) || 0,
+        hasFollowupToday: followupSet.has(customer.customer_id),
+      }));
+
+      // Sort customers:
+      // 1. Critical customers always first
+      // 2. Customers with followup today (not yet contacted) 
+      // 3. Uncontacted customers by priority_score
+      // 4. Contacted customers at the bottom
+      enrichedCustomers.sort((a, b) => {
+        // Critical customers first
+        const aCritical = a.is_critical ? 1 : 0;
+        const bCritical = b.is_critical ? 1 : 0;
+        if (aCritical !== bCritical) return bCritical - aCritical;
+
+        // Then by contact status
+        // Priority: followup today (not contacted) > not contacted > contacted
+        const aScore = getContactPriorityScore(a);
+        const bScore = getContactPriorityScore(b);
+        
+        if (aScore !== bScore) return bScore - aScore;
+
+        // Within same priority tier, sort by priority_score (higher first)
+        return (b.priority_score || 0) - (a.priority_score || 0);
+      });
+
+      setCustomers(enrichedCustomers);
     } catch (error: any) {
       console.error("Failed to fetch call list:", error.message);
     } finally {
@@ -116,9 +135,20 @@ export function TodaysCallList({ onPhoneClick }: TodaysCallListProps) {
     }
   };
 
+  // Priority score for sorting: higher = should appear first
+  const getContactPriorityScore = (customer: CustomerWithStatus): number => {
+    if (customer.hasFollowupToday && !customer.contactedToday) {
+      return 3; // Followup due today, not yet contacted - highest priority
+    }
+    if (!customer.contactedToday) {
+      return 2; // Not contacted today - second priority
+    }
+    return 1; // Already contacted - lowest priority
+  };
+
   useEffect(() => {
     fetchData();
-  }, [user, selectedDate]);
+  }, [user]);
 
   const handleInteractionLogged = () => {
     setSelectedCustomer(null);
@@ -130,40 +160,32 @@ export function TodaysCallList({ onPhoneClick }: TodaysCallListProps) {
     window.location.href = `tel:${phone}`;
   };
 
-  const truncateNotes = (notes: string, maxLength: number = 50) => {
-    if (notes.length <= maxLength) return notes;
-    return notes.substring(0, maxLength) + "...";
-  };
-
-  const getPriorityBadge = (score: number) => {
-    if (score >= 10000) {
-      return <Badge variant="destructive" className="text-xs">High Priority</Badge>;
-    } else if (score >= 1000) {
-      return <Badge className="text-xs bg-warning text-warning-foreground">Medium</Badge>;
-    } else {
-      return <Badge variant="secondary" className="text-xs">Normal</Badge>;
+  const getPriorityBadge = (customer: CustomerWithStatus) => {
+    if (customer.hasFollowupToday && !customer.contactedToday) {
+      return <Badge className="text-xs bg-accent text-accent-foreground">Follow-up Due</Badge>;
     }
+    if (customer.is_critical) {
+      return <Badge variant="destructive" className="text-xs">Critical</Badge>;
+    }
+    if ((customer.priority_score || 0) >= 10000) {
+      return <Badge variant="destructive" className="text-xs">High Priority</Badge>;
+    }
+    if ((customer.priority_score || 0) >= 1000) {
+      return <Badge className="text-xs bg-warning text-warning-foreground">Medium</Badge>;
+    }
+    return null;
   };
 
-  // Get customers who had interactions on selected date
-  const customersWithInteractions = useMemo(() => {
-    return customers.filter(c => dayInteractions.has(c.customer_id));
-  }, [customers, dayInteractions]);
-
-  // Total interactions count for the day
-  const totalInteractions = useMemo(() => {
-    let count = 0;
-    dayInteractions.forEach(interactions => {
-      count += interactions.length;
-    });
-    return count;
-  }, [dayInteractions]);
-
-  const dateLabel = useMemo(() => {
-    if (dateFilter === "today") return "Today";
-    if (dateFilter === "yesterday") return "Yesterday";
-    return format(selectedDate, "dd MMM yyyy");
-  }, [dateFilter, selectedDate]);
+  // Separate pending and completed calls
+  const pendingCalls = useMemo(() => 
+    customers.filter(c => !c.contactedToday), 
+    [customers]
+  );
+  
+  const completedCalls = useMemo(() => 
+    customers.filter(c => c.contactedToday),
+    [customers]
+  );
 
   if (isLoading) {
     return (
@@ -171,7 +193,7 @@ export function TodaysCallList({ onPhoneClick }: TodaysCallListProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Phone className="h-5 w-5" />
-            Call Activity
+            Today's Call List
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -186,122 +208,80 @@ export function TodaysCallList({ onPhoneClick }: TodaysCallListProps) {
   return (
     <>
       <Card>
-        <CardHeader className="space-y-4">
+        <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Phone className="h-5 w-5" />
-                Call Activity - {dateLabel}
+                Today's Call List
               </CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                {customersWithInteractions.length} customers contacted • {totalInteractions} interactions
+                {pendingCalls.length} pending • {completedCalls.length} completed
               </p>
             </div>
-            <DateRangeFilter
-              value={dateFilter}
-              onChange={setDateFilter}
-              customDate={customDate}
-              onCustomDateChange={setCustomDate}
-              showDayFilters={true}
-            />
+            <Badge variant="outline" className="w-fit">
+              <Calendar className="h-3 w-3 mr-1" />
+              {format(new Date(), "dd MMM yyyy")}
+            </Badge>
           </div>
         </CardHeader>
         <CardContent>
-          {customersWithInteractions.length === 0 ? (
+          {customers.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No call activity recorded for {dateLabel.toLowerCase()}
+              No customers available for calling today
             </div>
           ) : (
-            <div className="space-y-3">
-              {customersWithInteractions.map((customer, index) => {
-                const customerInteractions = dayInteractions.get(customer.customer_id) || [];
-                
-                return (
-                  <div
-                    key={customer.customer_id}
-                    className="flex flex-col gap-3 p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
-                  >
-                    {/* Customer Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary">
-                          {index + 1}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium truncate">{customer.name}</span>
-                            <Badge variant="secondary" className="text-xs">
-                              {customerInteractions.length} call{customerInteractions.length !== 1 ? 's' : ''}
-                            </Badge>
-                            {getPriorityBadge(customer.priority_score)}
-                          </div>
-                          
-                          {/* Stats Row */}
-                          <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <IndianRupee className="h-3 w-3" />
-                              {formatINR(customer.total_lifetime_sales)}
-                            </span>
-                            {customer.assigned_salesperson_name && (
-                              <span className="flex items-center gap-1">
-                                <User className="h-3 w-3" />
-                                {customer.assigned_salesperson_name}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1"
-                          onClick={() => handlePhoneClick(customer.phone)}
-                        >
-                          <Phone className="h-4 w-4" />
-                          <span className="hidden sm:inline">Call</span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="default"
-                          className="gap-1"
-                          onClick={() => setSelectedCustomer({ 
-                            id: customer.customer_id, 
-                            name: customer.name 
-                          })}
-                        >
-                          <MessageSquarePlus className="h-4 w-4" />
-                          <span className="hidden sm:inline">Log</span>
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Day's Interactions */}
-                    <div className="ml-11 space-y-2">
-                      {customerInteractions.map((interaction, i) => (
-                        <div key={i} className="text-sm bg-muted/50 px-3 py-2 rounded">
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                            <Clock className="h-3 w-3" />
-                            {format(new Date(interaction.interaction_datetime), "hh:mm a")}
-                            <Badge variant="outline" className="text-xs capitalize">
-                              {interaction.interaction_type.replace('_', ' ')}
-                            </Badge>
-                            <Badge 
-                              variant={interaction.interaction_outcome === 'order_placed' ? 'default' : 'secondary'} 
-                              className="text-xs capitalize"
-                            >
-                              {interaction.interaction_outcome.replace('_', ' ')}
-                            </Badge>
-                          </div>
-                          <p className="text-muted-foreground italic">"{truncateNotes(interaction.notes, 100)}"</p>
-                        </div>
-                      ))}
-                    </div>
+            <div className="space-y-6">
+              {/* Pending Calls Section */}
+              {pendingCalls.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                    <Phone className="h-4 w-4" />
+                    Pending Calls ({pendingCalls.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {pendingCalls.map((customer, index) => (
+                      <CustomerCallCard
+                        key={customer.customer_id}
+                        customer={customer}
+                        index={index}
+                        onPhoneClick={handlePhoneClick}
+                        onLogClick={() => setSelectedCustomer({ 
+                          id: customer.customer_id, 
+                          name: customer.name 
+                        })}
+                        getPriorityBadge={getPriorityBadge}
+                      />
+                    ))}
                   </div>
-                );
-              })}
+                </div>
+              )}
+
+              {/* Completed Calls Section */}
+              {completedCalls.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                    Completed Today ({completedCalls.length})
+                  </h3>
+                  <div className="space-y-2 opacity-75">
+                    {completedCalls.map((customer, index) => (
+                      <CustomerCallCard
+                        key={customer.customer_id}
+                        customer={customer}
+                        index={pendingCalls.length + index}
+                        onPhoneClick={handlePhoneClick}
+                        onLogClick={() => setSelectedCustomer({ 
+                          id: customer.customer_id, 
+                          name: customer.name 
+                        })}
+                        getPriorityBadge={getPriorityBadge}
+                        isCompleted
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -318,5 +298,92 @@ export function TodaysCallList({ onPhoneClick }: TodaysCallListProps) {
         />
       )}
     </>
+  );
+}
+
+// Extracted component for individual customer card
+interface CustomerCallCardProps {
+  customer: CustomerWithStatus;
+  index: number;
+  onPhoneClick: (phone: string) => void;
+  onLogClick: () => void;
+  getPriorityBadge: (customer: CustomerWithStatus) => React.ReactNode;
+  isCompleted?: boolean;
+}
+
+function CustomerCallCard({ 
+  customer, 
+  index, 
+  onPhoneClick, 
+  onLogClick, 
+  getPriorityBadge,
+  isCompleted 
+}: CustomerCallCardProps) {
+  return (
+    <div
+      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border bg-card hover:bg-accent/5 transition-colors ${
+        customer.hasFollowupToday && !customer.contactedToday ? 'border-accent ring-1 ring-accent/20' : ''
+      }`}
+    >
+      <div className="flex items-start gap-3 flex-1 min-w-0">
+        <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${
+          isCompleted 
+            ? 'bg-muted text-muted-foreground' 
+            : 'bg-primary/10 text-primary'
+        }`}>
+          {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium truncate">{customer.name}</span>
+            {getPriorityBadge(customer)}
+            {isCompleted && customer.todayInteractionCount > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {customer.todayInteractionCount} call{customer.todayInteractionCount !== 1 ? 's' : ''}
+              </Badge>
+            )}
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <IndianRupee className="h-3 w-3" />
+              {formatINR(customer.total_lifetime_sales || 0)}
+            </span>
+            {customer.days_since_last_contact !== null && (
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {customer.days_since_last_contact === 0 
+                  ? 'Today' 
+                  : `${customer.days_since_last_contact}d ago`}
+              </span>
+            )}
+            {customer.city && (
+              <span className="truncate max-w-24">{customer.city}</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 flex-shrink-0 ml-10 sm:ml-0">
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1 h-8"
+          onClick={() => onPhoneClick(customer.phone)}
+        >
+          <Phone className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Call</span>
+        </Button>
+        <Button
+          size="sm"
+          variant="default"
+          className="gap-1 h-8"
+          onClick={onLogClick}
+        >
+          <MessageSquarePlus className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Log</span>
+        </Button>
+      </div>
+    </div>
   );
 }
