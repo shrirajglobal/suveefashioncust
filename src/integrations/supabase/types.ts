@@ -242,6 +242,33 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_templates: {
+        Row: {
+          id: string
+          message_template: string
+          segment_key: string
+          segment_label: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          message_template: string
+          segment_key: string
+          segment_label: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          message_template?: string
+          segment_key?: string
+          segment_label?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       customer_analytics: {
