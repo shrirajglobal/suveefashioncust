@@ -97,13 +97,31 @@ export function TodaysCallList({ onPhoneClick }: TodaysCallListProps) {
 
       const followupSet = new Set((followupData || []).map((f) => f.customer_id));
 
-      // Combine data and sort
-      const enrichedCustomers: CustomerWithStatus[] = (analyticsData || []).map((customer) => ({
-        ...customer,
-        contactedToday: todayContactMap.has(customer.customer_id),
-        todayInteractionCount: todayContactMap.get(customer.customer_id) || 0,
-        hasFollowupToday: followupSet.has(customer.customer_id),
-      }));
+      // Combine data and apply filtering
+      const enrichedCustomers: CustomerWithStatus[] = (analyticsData || [])
+        .map((customer) => ({
+          ...customer,
+          contactedToday: todayContactMap.has(customer.customer_id),
+          todayInteractionCount: todayContactMap.get(customer.customer_id) || 0,
+          hasFollowupToday: followupSet.has(customer.customer_id),
+        }))
+        .filter((customer) => {
+          // RULE 1: If customer has a follow-up date set for today, always show them
+          if (customer.hasFollowupToday) {
+            return true;
+          }
+          
+          // RULE 2: Only show customers who haven't been contacted in the last 15 days
+          // days_since_last_contact is null means never contacted - should show
+          // days_since_last_contact >= 15 means 15+ days since last contact - should show
+          const daysSinceContact = customer.days_since_last_contact;
+          if (daysSinceContact === null || daysSinceContact >= 15) {
+            return true;
+          }
+          
+          // Otherwise, don't show (contacted within last 15 days without followup)
+          return false;
+        });
 
       // Sort customers:
       // 1. Critical customers always first
