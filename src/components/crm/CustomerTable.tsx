@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, memo } from "react";
 import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc, UserCheck, Users, MessageCircle, PhoneOff, AlertTriangle } from "lucide-react";
 import { CustomerWithPurchases } from "@/types/crm";
+import { EditCustomerDialog } from "./EditCustomerDialog";
 import { formatINR, formatDaysAgo, formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -46,6 +47,7 @@ interface CustomerTableProps {
   onToggleCritical?: (customerId: string, criticalStatus: boolean) => Promise<boolean>;
   onBulkToggleCritical?: (customerIds: string[], criticalStatus: boolean) => Promise<boolean>;
   onPhoneClick?: () => void;
+  onEditCustomer?: (customerId: string, data: { name: string; mobile_no: string; address: string; city: string }) => Promise<boolean>;
 }
 
 type SortField = "name" | "city" | "totalPurchaseAmount" | "daysSinceLastPurchase" | "assignedTo" | "isCritical";
@@ -61,6 +63,7 @@ export const CustomerTable = memo(function CustomerTable({
   onToggleCritical,
   onBulkToggleCritical,
   onPhoneClick,
+  onEditCustomer,
 }: CustomerTableProps) {
   const { userRole, isAdminOrAccounts } = useAuth();
   const [search, setSearch] = useState("");
@@ -488,6 +491,13 @@ export const CustomerTable = memo(function CustomerTable({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
+                      {/* Edit Customer - Admin/Accounts Only */}
+                      {isAdminOrAccounts && onEditCustomer && (
+                        <EditCustomerDialog
+                          customer={customer}
+                          onSave={onEditCustomer}
+                        />
+                      )}
                       {/* Critical Toggle - Super Admin Only */}
                       {isSuperAdmin && onToggleCritical && (
                         <Button
