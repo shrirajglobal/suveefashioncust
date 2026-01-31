@@ -104,6 +104,7 @@ const Index = () => {
     addCustomer,
     addPurchase,
     deleteCustomer,
+    updateCustomer,
     importCustomers,
     importPurchases,
     getCustomerMobileLookup,
@@ -115,6 +116,24 @@ const Index = () => {
     toggleCritical,
     bulkToggleCritical,
   } = useSupabaseCRM();
+
+  // Wrapper for edit customer that returns a boolean for the dialog
+  const handleEditCustomer = useCallback(async (
+    customerId: string,
+    data: { name: string; mobile_no: string; address: string; city: string }
+  ): Promise<boolean> => {
+    try {
+      await updateCustomer(customerId, {
+        name: data.name,
+        mobileNo: data.mobile_no,
+        address: data.address,
+        city: data.city,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }, [updateCustomer]);
 
   // Memoized date range label
   const dateRangeLabel = useMemo(() => getDateRangeLabel(dateRange), [dateRange]);
@@ -406,6 +425,7 @@ const Index = () => {
                 onToggleCritical={toggleCritical}
                 onBulkToggleCritical={bulkToggleCritical}
                 onPhoneClick={logPhoneClick}
+                onEditCustomer={handleEditCustomer}
               />
             </section>
           </TabsContent>
