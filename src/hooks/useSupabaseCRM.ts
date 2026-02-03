@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Customer, Purchase, CustomerWithPurchases, SEGMENTS, SegmentPeriod } from "@/types/crm";
 import { getDaysBetween } from "@/lib/formatters";
 import { toast } from "sonner";
-
+import { getSafeErrorMessage, logError } from "@/lib/errorHandler";
 interface DBCustomer {
   id: string;
   name: string;
@@ -101,8 +101,9 @@ export function useSupabaseCRM() {
       setPurchases((transactionsRes.data || []).map(mapDBPurchase));
 
       hasLoadedOnceRef.current = true;
-    } catch (error: any) {
-      toast.error("Failed to fetch data: " + error.message);
+    } catch (error: unknown) {
+      logError('fetchData', error);
+      toast.error(getSafeErrorMessage(error));
     } finally {
       if (isInitialLoad) {
         setIsLoading(false);
@@ -204,7 +205,8 @@ export function useSupabaseCRM() {
       .single();
 
     if (error) {
-      toast.error("Failed to add customer: " + error.message);
+      logError('addCustomer', error);
+      toast.error(getSafeErrorMessage(error));
       return null;
     }
 
@@ -228,7 +230,8 @@ export function useSupabaseCRM() {
       .eq("id", id);
 
     if (error) {
-      toast.error("Failed to update customer: " + error.message);
+      logError('updateCustomer', error);
+      toast.error(getSafeErrorMessage(error));
       return;
     }
 
@@ -243,7 +246,8 @@ export function useSupabaseCRM() {
     const { error } = await supabase.from("customers").delete().eq("id", id);
 
     if (error) {
-      toast.error("Failed to delete customer: " + error.message);
+      logError('deleteCustomer', error);
+      toast.error(getSafeErrorMessage(error));
       return;
     }
 
@@ -269,7 +273,8 @@ export function useSupabaseCRM() {
       .single();
 
     if (error) {
-      toast.error("Failed to add sale: " + error.message);
+      logError('addPurchase', error);
+      toast.error(getSafeErrorMessage(error));
       return null;
     }
 
@@ -284,7 +289,8 @@ export function useSupabaseCRM() {
     const { error } = await supabase.from("transactions").delete().eq("id", id);
 
     if (error) {
-      toast.error("Failed to delete sale: " + error.message);
+      logError('deletePurchase', error);
+      toast.error(getSafeErrorMessage(error));
       return;
     }
 
@@ -448,7 +454,8 @@ export function useSupabaseCRM() {
       .eq("id", customerId);
 
     if (error) {
-      toast.error("Failed to assign customer: " + error.message);
+      logError('assignCustomer', error);
+      toast.error(getSafeErrorMessage(error));
       return false;
     }
 
@@ -465,7 +472,8 @@ export function useSupabaseCRM() {
       .in("id", customerIds);
 
     if (error) {
-      toast.error("Failed to assign customers: " + error.message);
+      logError('bulkAssignCustomers', error);
+      toast.error(getSafeErrorMessage(error));
       return false;
     }
 
@@ -482,7 +490,8 @@ export function useSupabaseCRM() {
       .eq("id", customerId);
 
     if (error) {
-      toast.error("Failed to update DND status: " + error.message);
+      logError('toggleDND', error);
+      toast.error(getSafeErrorMessage(error));
       return false;
     }
 
@@ -499,7 +508,8 @@ export function useSupabaseCRM() {
       .eq("id", customerId);
 
     if (error) {
-      toast.error("Failed to update critical status: " + error.message);
+      logError('toggleCritical', error);
+      toast.error(getSafeErrorMessage(error));
       return false;
     }
 
@@ -516,7 +526,8 @@ export function useSupabaseCRM() {
       .in("id", customerIds);
 
     if (error) {
-      toast.error("Failed to update critical status: " + error.message);
+      logError('bulkToggleCritical', error);
+      toast.error(getSafeErrorMessage(error));
       return false;
     }
 
