@@ -46,6 +46,7 @@ import { Shield, Users, ArrowLeft, Lock, Unlock, Clock, Phone, IndianRupee, Targ
 import { addDays, format, formatDistanceToNow, startOfMonth, endOfMonth } from "date-fns";
 import { formatINR } from "@/lib/formatters";
 import { getCurrentFinancialYearRange, getCurrentFiscalQuarterRange } from "@/lib/financialYear";
+import { getSafeErrorMessage, logError } from "@/lib/errorHandler";
 
 type AppRole = "super_admin" | "accounts" | "sales_team";
 type TimePeriod = "monthly" | "quarterly" | "annual";
@@ -136,17 +137,14 @@ export default function UserManagement() {
 
   // Only super_admin can access this page
   const canManageRoles = userRole === "super_admin";
+  const isUnauthorized = userRole && userRole !== "super_admin";
 
   useEffect(() => {
-    if (userRole && userRole !== "super_admin") {
-      toast.error("Access denied. Only Super Admins can manage users.");
-      navigate("/");
+    // Only fetch if authorized
+    if (!isUnauthorized) {
+      fetchUsers();
     }
-  }, [userRole, navigate]);
-
-  useEffect(() => {
-    fetchUsers();
-  }, [timePeriod]);
+  }, [timePeriod, isUnauthorized]);
 
   const getDateRange = () => {
     const now = new Date();
@@ -231,8 +229,9 @@ export default function UserManagement() {
       }));
 
       setUsers(usersWithRoles);
-    } catch (error: any) {
-      toast.error("Failed to fetch users: " + error.message);
+    } catch (error: unknown) {
+      logError('fetchUsers', error);
+      toast.error(getSafeErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
@@ -274,8 +273,9 @@ export default function UserManagement() {
 
       toast.success(`Role updated to ${ROLE_LABELS[newRole]}`);
       fetchUsers();
-    } catch (error: any) {
-      toast.error("Failed to update role: " + error.message);
+    } catch (error: unknown) {
+      logError('confirmRoleChange', error);
+      toast.error(getSafeErrorMessage(error));
     } finally {
       setPendingChange(null);
     }
@@ -311,8 +311,9 @@ export default function UserManagement() {
       toast.success(`Access restricted for ${selectedUser.fullName || selectedUser.email}`);
       setRestrictDialogOpen(false);
       fetchUsers();
-    } catch (error: any) {
-      toast.error("Failed to restrict access: " + error.message);
+    } catch (error: unknown) {
+      logError('handleRestrictAccess', error);
+      toast.error(getSafeErrorMessage(error));
     } finally {
       setIsUpdating(false);
     }
@@ -334,8 +335,9 @@ export default function UserManagement() {
 
       toast.success("Access restriction removed");
       fetchUsers();
-    } catch (error: any) {
-      toast.error("Failed to remove restriction: " + error.message);
+    } catch (error: unknown) {
+      logError('handleRemoveRestriction', error);
+      toast.error(getSafeErrorMessage(error));
     } finally {
       setIsUpdating(false);
     }
@@ -372,8 +374,9 @@ export default function UserManagement() {
       toast.success("Profile updated successfully");
       setEditDialogOpen(false);
       fetchUsers();
-    } catch (error: any) {
-      toast.error("Failed to update profile: " + error.message);
+    } catch (error: unknown) {
+      logError('handleSaveProfile', error);
+      toast.error(getSafeErrorMessage(error));
     } finally {
       setIsUpdating(false);
     }
@@ -414,12 +417,32 @@ export default function UserManagement() {
       setAddDialogOpen(false);
       setAddForm({ email: "", password: "", fullName: "", mobileNo: "", salary: "" });
       fetchUsers();
-    } catch (error: any) {
-      toast.error("Failed to create salesperson: " + error.message);
+    } catch (error: unknown) {
+      logError('handleCreateSalesperson', error);
+      toast.error(getSafeErrorMessage(error));
     } finally {
       setIsCreating(false);
     }
   };
+
+  // Access denied - show before loading to prevent flash of content
+  if (isUnauthorized) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <div className="text-center py-12">
+            <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
+            <p className="text-muted-foreground mb-4">
+              Only Super Admins can access this page.
+            </p>
+            <Button onClick={() => navigate("/")}>Go Home</Button>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

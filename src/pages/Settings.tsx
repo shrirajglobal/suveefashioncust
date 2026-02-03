@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { UsageAnalytics } from "@/components/crm/UsageAnalytics";
 import { WhatsAppTemplateEditor } from "@/components/crm/WhatsAppTemplateEditor";
+import { getSafeErrorMessage, logError } from "@/lib/errorHandler";
 
 interface SalesUser {
   user_id: string;
@@ -75,8 +76,9 @@ export default function Settings() {
       });
 
       setSalesUsers(usersWithRoles);
-    } catch (error: any) {
-      console.error("Failed to fetch users:", error);
+    } catch (error: unknown) {
+      logError('fetchSalesUsers', error);
+      // Silent fail for user list - not critical
     }
   };
 
@@ -89,8 +91,8 @@ export default function Settings() {
 
       if (error) throw error;
       setCustomerCount(count || 0);
-    } catch (error: any) {
-      console.error("Failed to fetch customer count:", error);
+    } catch (error: unknown) {
+      logError('fetchCustomerCount', error);
       setCustomerCount(0);
     }
   };
@@ -127,15 +129,17 @@ export default function Settings() {
       });
 
       if (updateError) {
-        toast.error(updateError.message);
+        logError('handlePasswordChange', updateError);
+        toast.error(getSafeErrorMessage(updateError));
       } else {
         toast.success("Password updated successfully!");
         setOldPassword("");
         setNewPassword("");
         setConfirmPassword("");
       }
-    } catch (error: any) {
-      toast.error("Failed to update password: " + error.message);
+    } catch (error: unknown) {
+      logError('handlePasswordChange', error);
+      toast.error(getSafeErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
@@ -169,8 +173,9 @@ export default function Settings() {
       setFromUser("");
       setToUser("");
       setCustomerCount(0);
-    } catch (error: any) {
-      toast.error("Failed to reassign customers: " + error.message);
+    } catch (error: unknown) {
+      logError('handleBulkReassign', error);
+      toast.error(getSafeErrorMessage(error));
     } finally {
       setIsReassigning(false);
     }
