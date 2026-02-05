@@ -72,9 +72,10 @@ export function useSupabaseCRM() {
     }
     
     try {
+      // Fetch all data without default 1000 row limit
       const [customersRes, transactionsRes, profilesRes, rolesRes] = await Promise.all([
-        supabase.from("customers").select("*"),
-        supabase.from("transactions").select("*"),
+        supabase.from("customers").select("*").limit(50000),
+        supabase.from("transactions").select("*").limit(100000),
         supabase.from("profiles").select("user_id, full_name"),
         supabase.from("user_roles").select("user_id, role"),
       ]);
