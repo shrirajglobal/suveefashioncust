@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUsageTracking } from "@/hooks/useUsageTracking";
 import { useWelcomeMetrics } from "@/hooks/useWelcomeMetrics";
 import { formatINR, getDaysBetween } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 import { SEGMENTS, CustomerWithPurchases, SegmentPeriod } from "@/types/crm";
 import { Header } from "@/components/crm/Header";
 import { StatCard } from "@/components/crm/StatCard";
@@ -21,6 +22,8 @@ import { WelcomeMessage } from "@/components/crm/WelcomeMessage";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -115,7 +118,17 @@ const Index = () => {
     toggleDND,
     toggleCritical,
     bulkToggleCritical,
+    refetch,
   } = useSupabaseCRM();
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Manual refresh handler
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setIsRefreshing(false);
+  }, [refetch]);
 
   // Wrapper for edit customer that returns a boolean for the dialog
   const handleEditCustomer = useCallback(async (
@@ -347,6 +360,16 @@ const Index = () => {
 
         {/* Action Buttons */}
         <section className="flex flex-wrap gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="gap-2"
+          >
+            <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+            {isRefreshing ? "Refreshing..." : "Refresh Data"}
+          </Button>
           <AddCustomerForm onSubmit={addCustomer} />
           <AddPurchaseForm customers={customers} onSubmit={addPurchase} />
           <ImportCSVForm
