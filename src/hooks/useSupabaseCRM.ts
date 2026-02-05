@@ -5,6 +5,43 @@ import { Customer, Purchase, CustomerWithPurchases, SEGMENTS, SegmentPeriod } fr
 import { getDaysBetween } from "@/lib/formatters";
 import { toast } from "sonner";
 import { getSafeErrorMessage, logError } from "@/lib/errorHandler";
+
+const PAGE_SIZE = 1000;
+
+// PostgREST enforces a server-side max-rows (commonly 1000). To fetch beyond that,
+// we must paginate using .range().
+type CRMTableName = "customers" | "transactions";
+
+async function fetchAllRows<T>(
+  table: CRMTableName,
+  select: string,
+  orderColumns: string[] = ["created_at", "id"],
+  pageSize: number = PAGE_SIZE
+): Promise<T[]> {
+  const out: T[] = [];
+  let from = 0;
+
+  // Safety guard to avoid runaway loops in case of unexpected API behavior
+  const maxPages = 500;
+  for (let page = 0; page < maxPages; page++) {
+    let q: any = supabase.from(table).select(select);
+    orderColumns.forEach((col) => {
+      q = q.order(col, { ascending: true });
+    });
+
+    const { data, error } = await q.range(from, from + pageSize - 1);
+    if (error) throw error;
+
+    const rows = (data ?? []) as T[];
+    out.push(...rows);
+
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return out;
+}
+
 interface DBCustomer {
   id: string;
   name: string;
@@ -72,16 +109,15 @@ export function useSupabaseCRM() {
     }
     
     try {
-      // Fetch all data without default 1000 row limit
-      const [customersRes, transactionsRes, profilesRes, rolesRes] = await Promise.all([
-        supabase.from("customers").select("*").limit(50000),
-        supabase.from("transactions").select("*").limit(100000),
+      const [customersData, transactionsData, profilesRes, rolesRes] = await Promise.all([
+        fetchAllRows<DBCustomer>("customers", "*"),
+        fetchAllRows<DBTransaction>("transactions", "*"),
         supabase.from("profiles").select("user_id, full_name"),
         supabase.from("user_roles").select("user_id, role"),
       ]);
 
-      if (customersRes.error) throw customersRes.error;
-      if (transactionsRes.error) throw transactionsRes.error;
+      if (profilesRes.error) throw profilesRes.error;
+      if (rolesRes.error) throw rolesRes.error;
 
       // Create a map of user_id to full_name
       const profilesMap = new Map<string, string>();
@@ -98,8 +134,8 @@ export function useSupabaseCRM() {
         }));
       setSalesTeamMembers(salesTeam);
 
-      setCustomers((customersRes.data || []).map((c) => mapDBCustomer(c, profilesMap)));
-      setPurchases((transactionsRes.data || []).map(mapDBPurchase));
+      setCustomers((customersData || []).map((c) => mapDBCustomer(c, profilesMap)));
+      setPurchases((transactionsData || []).map(mapDBPurchase));
 
       hasLoadedOnceRef.current = true;
     } catch (error: unknown) {
