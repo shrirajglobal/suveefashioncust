@@ -1,0 +1,200 @@
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Clock, Calendar, TrendingUp, CheckCircle2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { format, startOfMonth, endOfMonth } from "date-fns";
+
+interface DashboardStats {
+  daysPresent: number;
+  totalWorkingDays: number;
+  overtimeHours: number;
+  pendingPayroll: number;
+  lastPunchTime: string | null;
+  lastPunchType: "IN" | "OUT" | null;
+}
+
+const StaffDashboard = () => {
+  const { user } = useAuth();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [employeeId, setEmployeeId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Get employee ID for current user
+  useEffect(() => {
+    const fetchEmployeeId = async () => {
+      if (!user) return;
+      
+      const { data, error } = await supabase.rpc("get_employee_id", { _user_id: user.id });
+      if (!error && data) {
+        setEmployeeId(data);
+      }
+    };
+    fetchEmployeeId();
+  }, [user]);
+
+  // Fetch dashboard stats
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!employeeId) {
+        setIsLoading(false);
+        return;
+      }
+
+      const now = new Date();
+      const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
+      const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
+      const today = format(now, "yyyy-MM-dd");
+
+      try {
+        // Get attendance logs for this month
+        const { data: attendanceLogs } = await supabase
+          .from("attendance_logs")
+          .select("*")
+          .eq("employee_id", employeeId)
+          .gte("date", monthStart)
+          .lte("date", monthEnd);
+
+        // Count unique days present
+        const uniqueDays = new Set(attendanceLogs?.map((log) => log.date) || []);
+        const daysPresent = uniqueDays.size;
+
+        // Get last punch
+        const { data: lastPunch } = await supabase
+          .from("attendance_logs")
+          .select("*")
+          .eq("employee_id", employeeId)
+          .eq("date", today)
+          .order("punch_time", { ascending: false })
+          .limit(1)
+          .single();
+
+        // Get pending payroll count
+        const { data: payrolls } = await supabase
+          .from("monthly_payroll")
+          .select("*")
+          .eq("employee_id", employeeId)
+          .eq("payment_status", "pending");
+
+        setStats({
+          daysPresent,
+          totalWorkingDays: 26,
+          overtimeHours: 0,
+          pendingPayroll: payrolls?.length || 0,
+          lastPunchTime: lastPunch?.punch_time || null,
+          lastPunchType: lastPunch?.punch_type || null,
+        });
+      } catch (error) {
+        console.error("Error fetching stats:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, [employeeId]);
+
+  if (isLoading) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2">
+        {[...Array(4)].map((_, i) => (
+          <Skeleton key={i} className="h-32" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <Card>
+        <CardContent className="pt-6 text-center text-muted-foreground">
+          No data available. Please ensure your account is linked to an employee record.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Quick Status */}
+      {stats.lastPunchTime && (
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="h-5 w-5 text-primary" />
+              <div>
+                <p className="text-sm font-medium">
+                  Last Punch: {stats.lastPunchType}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {format(new Date(stats.lastPunchTime), "hh:mm a, dd MMM")}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Stats Grid */}
+      <div className="grid gap-4 grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              This Month
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">
+              {stats.daysPresent}
+              <span className="text-sm font-normal text-muted-foreground">
+                /{stats.totalWorkingDays} days
+              </span>
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Overtime
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">
+              {stats.overtimeHours.toFixed(1)}
+              <span className="text-sm font-normal text-muted-foreground"> hrs</span>
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Pending Payroll
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <p className="text-2xl font-bold">{stats.pendingPayroll}</p>
+              <Badge variant={stats.pendingPayroll > 0 ? "destructive" : "secondary"}>
+                {stats.pendingPayroll > 0 ? "Pending" : "All Clear"}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Today's Date */}
+      <div className="text-center text-sm text-muted-foreground">
+        Today: {format(new Date(), "EEEE, dd MMMM yyyy")}
+      </div>
+    </div>
+  );
+};
+
+export default StaffDashboard;
