@@ -10,11 +10,13 @@ import {
   Wallet, 
   CreditCard, 
   FileText,
-  Settings
+  Settings,
+  MapPin
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HRSettingsDialog } from "@/components/attendance/HRSettingsDialog";
 import { Button } from "@/components/ui/button";
+import LocationTrackingProvider from "@/components/attendance/LocationTrackingProvider";
 
 // Lazy load tab content for performance
 const AttendanceDashboard = lazy(() => import("@/components/attendance/AttendanceDashboard"));
@@ -23,6 +25,7 @@ const TeamTab = lazy(() => import("@/components/attendance/TeamTab"));
 const PayrollTab = lazy(() => import("@/components/attendance/PayrollTab"));
 const PaymentsTab = lazy(() => import("@/components/attendance/PaymentsTab"));
 const PayslipsTab = lazy(() => import("@/components/attendance/PayslipsTab"));
+const TeamLocationTracker = lazy(() => import("@/components/attendance/TeamLocationTracker"));
 
 const TabSkeleton = () => (
   <div className="space-y-4 p-4">
@@ -32,7 +35,7 @@ const TabSkeleton = () => (
   </div>
 );
 
-type TabId = "dashboard" | "attendance" | "team" | "payroll" | "payments" | "payslips";
+type TabId = "dashboard" | "attendance" | "team" | "location" | "payroll" | "payments" | "payslips";
 
 interface TabConfig {
   id: TabId;
@@ -45,6 +48,7 @@ const TABS: TabConfig[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["super_admin", "accounts", "sales_team", "staff", "manager"] },
   { id: "attendance", label: "Attendance", icon: Clock, roles: ["super_admin", "accounts", "sales_team", "staff", "manager"] },
   { id: "team", label: "Team", icon: Users, roles: ["super_admin", "accounts", "manager"] },
+  { id: "location", label: "Location", icon: MapPin, roles: ["super_admin", "accounts"] },
   { id: "payroll", label: "Payroll", icon: Wallet, roles: ["super_admin", "accounts"] },
   { id: "payments", label: "Payments", icon: CreditCard, roles: ["super_admin", "accounts"] },
   { id: "payslips", label: "Payslips", icon: FileText, roles: ["staff", "sales_team"] },
@@ -101,6 +105,8 @@ const AttendancePayroll = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Silent location tracking for staff/manager */}
+      <LocationTrackingProvider />
       {/* Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
@@ -185,6 +191,10 @@ const AttendancePayroll = () => {
 
             <TabsContent value="team" className="mt-4">
               <TeamTab />
+            </TabsContent>
+
+            <TabsContent value="location" className="mt-4">
+              <TeamLocationTracker />
             </TabsContent>
 
             <TabsContent value="payroll" className="mt-4">

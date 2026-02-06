@@ -217,6 +217,44 @@ export type Database = {
         }
         Relationships: []
       }
+      employee_locations: {
+        Row: {
+          accuracy: number | null
+          created_at: string
+          employee_id: string
+          id: string
+          latitude: number
+          longitude: number
+          recorded_at: string
+        }
+        Insert: {
+          accuracy?: number | null
+          created_at?: string
+          employee_id: string
+          id?: string
+          latitude: number
+          longitude: number
+          recorded_at?: string
+        }
+        Update: {
+          accuracy?: number | null
+          created_at?: string
+          employee_id?: string
+          id?: string
+          latitude?: number
+          longitude?: number
+          recorded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_locations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_master"
+            referencedColumns: ["employee_id"]
+          },
+        ]
+      }
       employee_master: {
         Row: {
           base_salary: number
@@ -324,6 +362,44 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      location_tracking_settings: {
+        Row: {
+          created_at: string
+          employee_id: string
+          id: string
+          is_enabled: boolean
+          tracking_end_time: string
+          tracking_start_time: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          id?: string
+          is_enabled?: boolean
+          tracking_end_time?: string
+          tracking_start_time?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          id?: string
+          is_enabled?: boolean
+          tracking_end_time?: string
+          tracking_start_time?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "location_tracking_settings_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: true
+            referencedRelation: "employee_master"
+            referencedColumns: ["employee_id"]
           },
         ]
       }
