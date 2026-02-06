@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import PushNotificationToggle from "@/components/notifications/PushNotificationToggle";
 
 export const Header = memo(function Header() {
   const { user, userRole, signOut } = useAuth();
@@ -97,6 +98,13 @@ export const Header = memo(function Header() {
               >
                 <Clock className="h-4 w-4" />
               </Button>
+              
+              {/* Push Notifications Toggle - only for sales team */}
+              {userRole === "sales_team" && (
+                <div className="hidden sm:block">
+                  <PushNotificationToggle showLabel={false} />
+                </div>
+              )}
               
               <span className="text-sm text-muted-foreground hidden md:inline">
                 {user.email}
