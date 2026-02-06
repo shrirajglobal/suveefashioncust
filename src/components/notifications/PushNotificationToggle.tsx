@@ -17,7 +17,6 @@ const PushNotificationToggle = ({
     isSubscribed, 
     isLoading, 
     permission,
-    vapidKeyConfigured,
     subscribe, 
     unsubscribe 
   } = usePushNotifications();
@@ -29,10 +28,6 @@ const PushNotificationToggle = ({
         Push not supported
       </Badge>
     );
-  }
-
-  if (!vapidKeyConfigured) {
-    return null; // Hide if not configured
   }
 
   if (permission === "denied") {
