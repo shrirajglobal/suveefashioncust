@@ -282,6 +282,7 @@ export type Database = {
           overtime_rate: number
           payment_status: Database["public"]["Enums"]["payment_status"]
           payroll_id: string
+          payslip_url: string | null
           per_day_rate: number
           total_deductions: number | null
           total_working_days: number
@@ -301,6 +302,7 @@ export type Database = {
           overtime_rate?: number
           payment_status?: Database["public"]["Enums"]["payment_status"]
           payroll_id?: string
+          payslip_url?: string | null
           per_day_rate?: number
           total_deductions?: number | null
           total_working_days?: number
@@ -320,6 +322,7 @@ export type Database = {
           overtime_rate?: number
           payment_status?: Database["public"]["Enums"]["payment_status"]
           payroll_id?: string
+          payslip_url?: string | null
           per_day_rate?: number
           total_deductions?: number | null
           total_working_days?: number
