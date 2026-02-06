@@ -421,6 +421,60 @@ export type Database = {
           },
         ]
       }
+      staff_payments: {
+        Row: {
+          amount_paid: number
+          created_at: string
+          employee_id: string
+          payment_date: string
+          payment_id: string
+          payment_mode: Database["public"]["Enums"]["staff_payment_mode"]
+          payroll_id: string
+          recorded_by: string
+          transaction_reference: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_paid: number
+          created_at?: string
+          employee_id: string
+          payment_date?: string
+          payment_id?: string
+          payment_mode: Database["public"]["Enums"]["staff_payment_mode"]
+          payroll_id: string
+          recorded_by: string
+          transaction_reference?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_paid?: number
+          created_at?: string
+          employee_id?: string
+          payment_date?: string
+          payment_id?: string
+          payment_mode?: Database["public"]["Enums"]["staff_payment_mode"]
+          payroll_id?: string
+          recorded_by?: string
+          transaction_reference?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_payments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_master"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "staff_payments_payroll_id_fkey"
+            columns: ["payroll_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_payroll"
+            referencedColumns: ["payroll_id"]
+          },
+        ]
+      }
       transactions: {
         Row: {
           amount: number
@@ -594,6 +648,7 @@ export type Database = {
       punch_type: "IN" | "OUT"
       review_action: "approved" | "edited" | "rejected"
       salary_type: "monthly" | "daily" | "hourly"
+      staff_payment_mode: "UPI" | "Bank" | "Cash"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -745,6 +800,7 @@ export const Constants = {
       punch_type: ["IN", "OUT"],
       review_action: ["approved", "edited", "rejected"],
       salary_type: ["monthly", "daily", "hourly"],
+      staff_payment_mode: ["UPI", "Bank", "Cash"],
     },
   },
 } as const
