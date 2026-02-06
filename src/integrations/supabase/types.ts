@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      attendance_logs: {
+        Row: {
+          created_at: string
+          date: string
+          device_id: string | null
+          employee_id: string
+          entry_status: Database["public"]["Enums"]["entry_status"]
+          gps_latitude: number | null
+          gps_longitude: number | null
+          log_id: string
+          punch_time: string
+          punch_type: Database["public"]["Enums"]["punch_type"]
+          selfie_image_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date?: string
+          device_id?: string | null
+          employee_id: string
+          entry_status?: Database["public"]["Enums"]["entry_status"]
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          log_id?: string
+          punch_time?: string
+          punch_type: Database["public"]["Enums"]["punch_type"]
+          selfie_image_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          device_id?: string | null
+          employee_id?: string
+          entry_status?: Database["public"]["Enums"]["entry_status"]
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          log_id?: string
+          punch_time?: string
+          punch_type?: Database["public"]["Enums"]["punch_type"]
+          selfie_image_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_logs_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_master"
+            referencedColumns: ["employee_id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address: string | null
@@ -364,6 +417,7 @@ export type Database = {
     Enums: {
       app_role: "super_admin" | "accounts" | "sales_team"
       employee_status: "active" | "inactive"
+      entry_status: "auto" | "edited"
       interaction_outcome:
         | "successful"
         | "no_answer"
@@ -379,6 +433,7 @@ export type Database = {
         | "in_person"
         | "sms"
         | "other"
+      punch_type: "IN" | "OUT"
       salary_type: "monthly" | "daily" | "hourly"
     }
     CompositeTypes: {
@@ -509,6 +564,7 @@ export const Constants = {
     Enums: {
       app_role: ["super_admin", "accounts", "sales_team"],
       employee_status: ["active", "inactive"],
+      entry_status: ["auto", "edited"],
       interaction_outcome: [
         "successful",
         "no_answer",
@@ -526,6 +582,7 @@ export const Constants = {
         "sms",
         "other",
       ],
+      punch_type: ["IN", "OUT"],
       salary_type: ["monthly", "daily", "hourly"],
     },
   },
