@@ -108,7 +108,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/hr"
+                  path="/hr/*"
                   element={
                     <ProtectedRoute>
                       <AttendancePayroll />
