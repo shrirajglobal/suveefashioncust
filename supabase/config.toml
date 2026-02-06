@@ -1,1 +1,7 @@
 project_id = "rospqjcriewrjjzifmac"
+
+[functions.send-push-notification]
+verify_jwt = false
+
+[functions.sales-inactivity-reminder]
+verify_jwt = false
