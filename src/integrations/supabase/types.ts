@@ -407,6 +407,36 @@ export type Database = {
           },
         ]
       }
+      paid_holidays: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          financial_year: string
+          holiday_date: string
+          holiday_name: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          financial_year: string
+          holiday_date: string
+          holiday_name: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          financial_year?: string
+          holiday_date?: string
+          holiday_name?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -658,6 +688,39 @@ export type Database = {
           segment_label?: string
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      work_shifts: {
+        Row: {
+          break_duration_minutes: number
+          created_at: string
+          end_time: string
+          id: string
+          is_default: boolean
+          shift_name: string
+          start_time: string
+          updated_at: string
+        }
+        Insert: {
+          break_duration_minutes?: number
+          created_at?: string
+          end_time: string
+          id?: string
+          is_default?: boolean
+          shift_name: string
+          start_time: string
+          updated_at?: string
+        }
+        Update: {
+          break_duration_minutes?: number
+          created_at?: string
+          end_time?: string
+          id?: string
+          is_default?: boolean
+          shift_name?: string
+          start_time?: string
+          updated_at?: string
         }
         Relationships: []
       }
