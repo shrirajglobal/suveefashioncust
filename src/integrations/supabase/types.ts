@@ -59,6 +59,62 @@ export type Database = {
         }
         Relationships: []
       }
+      employee_master: {
+        Row: {
+          base_salary: number
+          created_at: string
+          department: string
+          employee_id: string
+          full_name: string
+          joining_date: string
+          overtime_rate: number
+          per_day_rate: number
+          reporting_manager_id: string | null
+          role: string
+          salary_type: Database["public"]["Enums"]["salary_type"]
+          status: Database["public"]["Enums"]["employee_status"]
+          updated_at: string
+        }
+        Insert: {
+          base_salary?: number
+          created_at?: string
+          department: string
+          employee_id?: string
+          full_name: string
+          joining_date?: string
+          overtime_rate?: number
+          per_day_rate?: number
+          reporting_manager_id?: string | null
+          role: string
+          salary_type?: Database["public"]["Enums"]["salary_type"]
+          status?: Database["public"]["Enums"]["employee_status"]
+          updated_at?: string
+        }
+        Update: {
+          base_salary?: number
+          created_at?: string
+          department?: string
+          employee_id?: string
+          full_name?: string
+          joining_date?: string
+          overtime_rate?: number
+          per_day_rate?: number
+          reporting_manager_id?: string | null
+          role?: string
+          salary_type?: Database["public"]["Enums"]["salary_type"]
+          status?: Database["public"]["Enums"]["employee_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_master_reporting_manager_id_fkey"
+            columns: ["reporting_manager_id"]
+            isOneToOne: false
+            referencedRelation: "employee_master"
+            referencedColumns: ["employee_id"]
+          },
+        ]
+      }
       interactions: {
         Row: {
           created_at: string
@@ -307,6 +363,7 @@ export type Database = {
     }
     Enums: {
       app_role: "super_admin" | "accounts" | "sales_team"
+      employee_status: "active" | "inactive"
       interaction_outcome:
         | "successful"
         | "no_answer"
@@ -322,6 +379,7 @@ export type Database = {
         | "in_person"
         | "sms"
         | "other"
+      salary_type: "monthly" | "daily" | "hourly"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -450,6 +508,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["super_admin", "accounts", "sales_team"],
+      employee_status: ["active", "inactive"],
       interaction_outcome: [
         "successful",
         "no_answer",
@@ -467,6 +526,7 @@ export const Constants = {
         "sms",
         "other",
       ],
+      salary_type: ["monthly", "daily", "hourly"],
     },
   },
 } as const
