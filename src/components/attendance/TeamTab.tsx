@@ -4,11 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, Clock, XCircle, Users, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, Users, AlertTriangle, BarChart3 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 
 const ManagerReviewTab = lazy(() => import("./ManagerReviewTab"));
+const TeamAttendanceDashboard = lazy(() => import("./TeamAttendanceDashboard"));
 
 interface TeamMember {
   employee_id: string;
@@ -83,14 +84,18 @@ const TeamTab = () => {
   return (
     <div className="space-y-4">
       <Tabs value={activeView} onValueChange={(v) => setActiveView(v as any)}>
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="status" className="gap-2">
             <Users className="h-4 w-4" />
-            Team Status
+            Today
+          </TabsTrigger>
+          <TabsTrigger value="dashboard" className="gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Dashboard
           </TabsTrigger>
           <TabsTrigger value="review" className="gap-2">
             <AlertTriangle className="h-4 w-4" />
-            Review Issues
+            Review
           </TabsTrigger>
         </TabsList>
 
@@ -188,6 +193,12 @@ const TeamTab = () => {
               </Card>
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="dashboard" className="mt-4">
+          <Suspense fallback={<Skeleton className="h-96" />}>
+            <TeamAttendanceDashboard />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="review" className="mt-4">
