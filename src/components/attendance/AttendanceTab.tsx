@@ -253,15 +253,20 @@ const AttendanceTab = () => {
     await startCamera();
   }, [startCamera]);
 
-  // Initialize camera on mount - only once
+  // Check if camera was previously granted - only auto-start if permission is already granted
   useEffect(() => {
-    const initCamera = async () => {
-      // Small delay to ensure component is fully mounted
-      await new Promise(resolve => setTimeout(resolve, 100));
-      await startCamera();
+    const checkAndInitCamera = async () => {
+      const permStatus = await checkCameraPermission();
+      setCameraPermission(permStatus);
+      
+      // Only auto-start if permission was already granted
+      if (permStatus === "granted") {
+        await startCamera();
+      }
+      // Otherwise, wait for user to click the "Enable Camera Access" button
     };
     
-    initCamera();
+    checkAndInitCamera();
 
     // Cleanup on unmount
     return () => {
@@ -479,31 +484,51 @@ const AttendanceTab = () => {
             {!cameraReady && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted p-4">
                 {isRetryingCamera ? (
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <div className="text-center space-y-2">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+                    <p className="text-sm text-muted-foreground">Requesting camera access...</p>
+                  </div>
                 ) : cameraError ? (
                   <div className="text-center space-y-3">
-                    <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
+                    <AlertCircle className="h-10 w-10 text-destructive mx-auto" />
                     <p className="text-destructive text-sm max-w-xs">{cameraError}</p>
                     <Button 
-                      variant="outline" 
-                      size="sm" 
+                      variant="default" 
+                      size="lg" 
                       onClick={retryCamera}
-                      className="gap-2"
+                      className="gap-2 mt-2"
                     >
-                      <RefreshCw className="h-4 w-4" />
-                      Retry Camera
+                      <Camera className="h-5 w-5" />
+                      Enable Camera Access
                     </Button>
                     {cameraPermission === "denied" && (
-                      <p className="text-xs text-muted-foreground mt-2">
+                      <p className="text-xs text-muted-foreground mt-3">
+                        <strong>Permission blocked?</strong><br />
                         On iOS: Settings → Safari → Camera<br />
                         On Android: Settings → Apps → Browser → Permissions
                       </p>
                     )}
                   </div>
                 ) : (
-                  <div className="text-center space-y-2">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
-                    <p className="text-sm text-muted-foreground">Starting camera...</p>
+                  <div className="text-center space-y-4">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                      <Camera className="h-8 w-8 text-primary" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="font-medium">Camera Required</p>
+                      <p className="text-sm text-muted-foreground max-w-xs">
+                        Selfie capture is required for attendance verification
+                      </p>
+                    </div>
+                    <Button 
+                      variant="default" 
+                      size="lg" 
+                      onClick={startCamera}
+                      className="gap-2"
+                    >
+                      <Camera className="h-5 w-5" />
+                      Enable Camera Access
+                    </Button>
                   </div>
                 )}
               </div>
