@@ -175,6 +175,7 @@ export type Database = {
           salary_type: Database["public"]["Enums"]["salary_type"]
           status: Database["public"]["Enums"]["employee_status"]
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           base_salary?: number
@@ -190,6 +191,7 @@ export type Database = {
           salary_type?: Database["public"]["Enums"]["salary_type"]
           status?: Database["public"]["Enums"]["employee_status"]
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           base_salary?: number
@@ -205,6 +207,7 @@ export type Database = {
           salary_type?: Database["public"]["Enums"]["salary_type"]
           status?: Database["public"]["Enums"]["employee_status"]
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -615,6 +618,7 @@ export type Database = {
       }
     }
     Functions: {
+      get_employee_id: { Args: { _user_id: string }; Returns: string }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -627,6 +631,12 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_accounts: { Args: { _user_id: string }; Returns: boolean }
+      is_manager: { Args: { _user_id: string }; Returns: boolean }
+      is_staff: { Args: { _user_id: string }; Returns: boolean }
+      is_team_member: {
+        Args: { _employee_id: string; _manager_user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "super_admin" | "accounts" | "sales_team"
