@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { CheckCircle2, Clock, XCircle } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CheckCircle2, Clock, XCircle, Users, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+
+const ManagerReviewTab = lazy(() => import("./ManagerReviewTab"));
 
 interface TeamMember {
   employee_id: string;
@@ -20,6 +23,7 @@ interface TeamMember {
 const TeamTab = () => {
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeView, setActiveView] = useState<"status" | "review">("status");
 
   useEffect(() => {
     const fetchTeam = async () => {
@@ -73,111 +77,128 @@ const TeamTab = () => {
     fetchTeam();
   }, []);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {[...Array(5)].map((_, i) => (
-          <Skeleton key={i} className="h-20" />
-        ))}
-      </div>
-    );
-  }
-
   const presentCount = team.filter((m) => m.status === "present").length;
   const absentCount = team.filter((m) => m.status === "absent" || m.status === "not_punched").length;
 
   return (
     <div className="space-y-4">
-      {/* Summary */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              <div>
-                <p className="text-2xl font-bold text-green-700 dark:text-green-400">{presentCount}</p>
-                <p className="text-xs text-green-600">Present</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <XCircle className="h-5 w-5 text-red-600" />
-              <div>
-                <p className="text-2xl font-bold text-red-700 dark:text-red-400">{absentCount}</p>
-                <p className="text-xs text-red-600">Absent / Not Punched</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Tabs value={activeView} onValueChange={(v) => setActiveView(v as any)}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="status" className="gap-2">
+            <Users className="h-4 w-4" />
+            Team Status
+          </TabsTrigger>
+          <TabsTrigger value="review" className="gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            Review Issues
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Team List */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Team Status</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="divide-y">
-            {team.map((member) => (
-              <div
-                key={member.employee_id}
-                className="flex items-center justify-between p-4 hover:bg-muted/50"
-              >
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback>
-                      {member.full_name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium text-sm">{member.full_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {member.role} • {member.department}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <Badge
-                    variant={
-                      member.status === "present"
-                        ? "default"
-                        : member.status === "absent"
-                        ? "secondary"
-                        : "outline"
-                    }
-                    className={
-                      member.status === "present"
-                        ? "bg-green-100 text-green-700 hover:bg-green-100"
-                        : ""
-                    }
-                  >
-                    {member.status === "present"
-                      ? "Present"
-                      : member.status === "absent"
-                      ? "Left"
-                      : "Not Punched"}
-                  </Badge>
-                  {member.lastPunchTime && (
-                    <p className="text-xs text-muted-foreground mt-1 flex items-center justify-end gap-1">
-                      <Clock className="h-3 w-3" />
-                      {format(new Date(member.lastPunchTime), "hh:mm a")}
-                    </p>
-                  )}
-                </div>
+        <TabsContent value="status" className="mt-4">
+          {isLoading ? (
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-20" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Summary */}
+              <div className="grid grid-cols-2 gap-3">
+                <Card className="bg-primary/5 border-primary/20">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="text-2xl font-bold text-primary">{presentCount}</p>
+                        <p className="text-xs text-muted-foreground">Present</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-destructive/5 border-destructive/20">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center gap-2">
+                      <XCircle className="h-5 w-5 text-destructive" />
+                      <div>
+                        <p className="text-2xl font-bold text-destructive">{absentCount}</p>
+                        <p className="text-xs text-muted-foreground">Absent / Not Punched</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+
+              {/* Team List */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Team Status</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="divide-y">
+                    {team.map((member) => (
+                      <div
+                        key={member.employee_id}
+                        className="flex items-center justify-between p-4 hover:bg-muted/50"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarFallback>
+                              {member.full_name
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium text-sm">{member.full_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {member.role} • {member.department}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <Badge
+                            variant={
+                              member.status === "present"
+                                ? "default"
+                                : member.status === "absent"
+                                ? "secondary"
+                                : "outline"
+                            }
+                          >
+                            {member.status === "present"
+                              ? "Present"
+                              : member.status === "absent"
+                              ? "Left"
+                              : "Not Punched"}
+                          </Badge>
+                          {member.lastPunchTime && (
+                            <p className="text-xs text-muted-foreground mt-1 flex items-center justify-end gap-1">
+                              <Clock className="h-3 w-3" />
+                              {format(new Date(member.lastPunchTime), "hh:mm a")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="review" className="mt-4">
+          <Suspense fallback={<Skeleton className="h-96" />}>
+            <ManagerReviewTab />
+          </Suspense>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
 
 export default TeamTab;
+
