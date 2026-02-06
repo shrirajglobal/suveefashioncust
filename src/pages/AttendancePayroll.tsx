@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -51,6 +52,11 @@ const TABS: TabConfig[] = [
 
 const AttendancePayroll = () => {
   const { userRole, isAdminOrAccounts } = useAuth();
+  const navigate = useNavigate();
+  
+  // Users with CRM access can switch to CRM
+  const hasCRMAccess = userRole === "super_admin" || userRole === "accounts" || userRole === "sales_team";
+  
   const [activeTab, setActiveTab] = useState<TabId>(() => {
     try {
       return (localStorage.getItem("attendance:activeTab") as TabId) ?? "dashboard";
@@ -99,16 +105,53 @@ const AttendancePayroll = () => {
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-xl font-bold">Attendance & Payroll</h1>
-          {isAdminOrAccounts && (
-            <HRSettingsDialog
-              trigger={
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Settings className="h-4 w-4" />
-                  <span className="hidden sm:inline">HR Settings</span>
+          <div className="flex items-center gap-2">
+            {/* Module Navigation for CRM access */}
+            {hasCRMAccess && (
+              <div className="hidden sm:flex items-center border rounded-lg p-1 mr-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate("/")}
+                  className="gap-1"
+                >
+                  <Users className="h-4 w-4" />
+                  CRM
                 </Button>
-              }
-            />
-          )}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="gap-1 bg-muted"
+                >
+                  <Clock className="h-4 w-4" />
+                  HR
+                </Button>
+              </div>
+            )}
+            
+            {/* Mobile: Icon-only CRM button */}
+            {hasCRMAccess && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => navigate("/")}
+                className="sm:hidden"
+              >
+                <Users className="h-4 w-4" />
+              </Button>
+            )}
+            
+            {isAdminOrAccounts && (
+              <HRSettingsDialog
+                trigger={
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Settings className="h-4 w-4" />
+                    <span className="hidden sm:inline">HR Settings</span>
+                  </Button>
+                }
+              />
+            )}
+          </div>
         </div>
       </header>
 
