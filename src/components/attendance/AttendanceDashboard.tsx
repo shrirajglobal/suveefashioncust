@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Clock, Calendar, TrendingUp, CheckCircle2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Clock, Calendar, TrendingUp, CheckCircle2, History } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, startOfMonth, endOfMonth } from "date-fns";
+
+const AttendanceHistory = lazy(() => import("./AttendanceHistory"));
 
 interface DashboardStats {
   daysPresent: number;
@@ -21,6 +24,7 @@ const AttendanceDashboard = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeView, setActiveView] = useState<"overview" | "history">("overview");
 
   // Get employee ID for current user
   useEffect(() => {
@@ -122,103 +126,120 @@ const AttendanceDashboard = () => {
     fetchStats();
   }, [employeeId, isAdminOrAccounts]);
 
-  if (isLoading) {
-    return (
-      <div className="grid gap-4 sm:grid-cols-2">
-        {[...Array(4)].map((_, i) => (
-          <Skeleton key={i} className="h-32" />
-        ))}
-      </div>
-    );
-  }
-
-  if (!stats) {
-    return (
-      <Card>
-        <CardContent className="pt-6 text-center text-muted-foreground">
-          No data available
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-4">
-      {/* Quick Status */}
-      {stats.lastPunchTime && (
-        <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-5 w-5 text-primary" />
-              <div>
-                <p className="text-sm font-medium">
-                  Last Punch: {stats.lastPunchType}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {format(new Date(stats.lastPunchTime), "hh:mm a, dd MMM")}
-                </p>
+      <Tabs value={activeView} onValueChange={(v) => setActiveView(v as any)}>
+        <TabsList className="grid w-full grid-cols-2 max-w-xs">
+          <TabsTrigger value="overview" className="gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="history" className="gap-2">
+            <History className="h-4 w-4" />
+            History
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="mt-4">
+          {isLoading ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[...Array(4)].map((_, i) => (
+                <Skeleton key={i} className="h-32" />
+              ))}
+            </div>
+          ) : !stats ? (
+            <Card>
+              <CardContent className="pt-6 text-center text-muted-foreground">
+                No data available
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {/* Quick Status */}
+              {stats.lastPunchTime && (
+                <Card className="bg-primary/5 border-primary/20">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="text-sm font-medium">
+                          Last Punch: {stats.lastPunchType}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(stats.lastPunchTime), "hh:mm a, dd MMM")}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Stats Grid */}
+              <div className="grid gap-4 grid-cols-2">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      This Month
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold">
+                      {stats.daysPresent}
+                      <span className="text-sm font-normal text-muted-foreground">
+                        /{stats.totalWorkingDays} days
+                      </span>
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Overtime
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold">
+                      {stats.overtimeHours.toFixed(1)}
+                      <span className="text-sm font-normal text-muted-foreground"> hrs</span>
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="col-span-2">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4" />
+                      Pending Payroll
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between">
+                      <p className="text-2xl font-bold">{stats.pendingPayroll}</p>
+                      <Badge variant={stats.pendingPayroll > 0 ? "destructive" : "secondary"}>
+                        {stats.pendingPayroll > 0 ? "Pending" : "All Clear"}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Today's Date */}
+              <div className="text-center text-sm text-muted-foreground">
+                Today: {format(new Date(), "EEEE, dd MMMM yyyy")}
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </TabsContent>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              This Month
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              {stats.daysPresent}
-              <span className="text-sm font-normal text-muted-foreground">
-                /{stats.totalWorkingDays} days
-              </span>
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Overtime
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              {stats.overtimeHours.toFixed(1)}
-              <span className="text-sm font-normal text-muted-foreground"> hrs</span>
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Pending Payroll
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <p className="text-2xl font-bold">{stats.pendingPayroll}</p>
-              <Badge variant={stats.pendingPayroll > 0 ? "destructive" : "secondary"}>
-                {stats.pendingPayroll > 0 ? "Pending" : "All Clear"}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Today's Date */}
-      <div className="text-center text-sm text-muted-foreground">
-        Today: {format(new Date(), "EEEE, dd MMMM yyyy")}
-      </div>
+        <TabsContent value="history" className="mt-4">
+          <Suspense fallback={<Skeleton className="h-96" />}>
+            <AttendanceHistory />
+          </Suspense>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
