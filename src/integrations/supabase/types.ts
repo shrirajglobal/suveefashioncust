@@ -312,6 +312,47 @@ export type Database = {
         }
         Relationships: []
       }
+      salary_rules: {
+        Row: {
+          created_at: string
+          deduction_per_absent_day: number
+          employee_id: string
+          overtime_multiplier: number
+          paid_leaves_allowed: number
+          rule_id: string
+          updated_at: string
+          working_days_per_month: number
+        }
+        Insert: {
+          created_at?: string
+          deduction_per_absent_day?: number
+          employee_id: string
+          overtime_multiplier?: number
+          paid_leaves_allowed?: number
+          rule_id?: string
+          updated_at?: string
+          working_days_per_month?: number
+        }
+        Update: {
+          created_at?: string
+          deduction_per_absent_day?: number
+          employee_id?: string
+          overtime_multiplier?: number
+          paid_leaves_allowed?: number
+          rule_id?: string
+          updated_at?: string
+          working_days_per_month?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salary_rules_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: true
+            referencedRelation: "employee_master"
+            referencedColumns: ["employee_id"]
+          },
+        ]
+      }
       transactions: {
         Row: {
           amount: number
