@@ -4,12 +4,13 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, Clock, XCircle, Users, AlertTriangle, BarChart3 } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, Users, AlertTriangle, BarChart3, Flag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 
 const ManagerReviewTab = lazy(() => import("./ManagerReviewTab"));
 const TeamAttendanceDashboard = lazy(() => import("./TeamAttendanceDashboard"));
+const FlaggedEntriesReview = lazy(() => import("./FlaggedEntriesReview"));
 
 interface TeamMember {
   employee_id: string;
@@ -24,7 +25,7 @@ interface TeamMember {
 const TeamTab = () => {
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeView, setActiveView] = useState<"status" | "review">("status");
+  const [activeView, setActiveView] = useState<"status" | "dashboard" | "flags" | "review">("status");
 
   useEffect(() => {
     const fetchTeam = async () => {
@@ -84,18 +85,22 @@ const TeamTab = () => {
   return (
     <div className="space-y-4">
       <Tabs value={activeView} onValueChange={(v) => setActiveView(v as any)}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="status" className="gap-2">
             <Users className="h-4 w-4" />
-            Today
+            <span className="hidden sm:inline">Today</span>
           </TabsTrigger>
           <TabsTrigger value="dashboard" className="gap-2">
             <BarChart3 className="h-4 w-4" />
-            Dashboard
+            <span className="hidden sm:inline">Dashboard</span>
+          </TabsTrigger>
+          <TabsTrigger value="flags" className="gap-2">
+            <Flag className="h-4 w-4" />
+            <span className="hidden sm:inline">Flags</span>
           </TabsTrigger>
           <TabsTrigger value="review" className="gap-2">
             <AlertTriangle className="h-4 w-4" />
-            Review
+            <span className="hidden sm:inline">Review</span>
           </TabsTrigger>
         </TabsList>
 
@@ -198,6 +203,12 @@ const TeamTab = () => {
         <TabsContent value="dashboard" className="mt-4">
           <Suspense fallback={<Skeleton className="h-96" />}>
             <TeamAttendanceDashboard />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="flags" className="mt-4">
+          <Suspense fallback={<Skeleton className="h-96" />}>
+            <FlaggedEntriesReview />
           </Suspense>
         </TabsContent>
 
