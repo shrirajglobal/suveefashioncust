@@ -278,7 +278,10 @@ export type Database = {
           deduction_rate: number
           employee_id: string
           gross_salary: number | null
+          is_locked: boolean
           leave_days: number
+          locked_at: string | null
+          locked_by: string | null
           month_year: string
           net_salary: number | null
           overtime_hours: number
@@ -298,7 +301,10 @@ export type Database = {
           deduction_rate?: number
           employee_id: string
           gross_salary?: number | null
+          is_locked?: boolean
           leave_days?: number
+          locked_at?: string | null
+          locked_by?: string | null
           month_year: string
           net_salary?: number | null
           overtime_hours?: number
@@ -318,7 +324,10 @@ export type Database = {
           deduction_rate?: number
           employee_id?: string
           gross_salary?: number | null
+          is_locked?: boolean
           leave_days?: number
+          locked_at?: string | null
+          locked_by?: string | null
           month_year?: string
           net_salary?: number | null
           overtime_hours?: number
