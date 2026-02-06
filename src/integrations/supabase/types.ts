@@ -67,6 +67,54 @@ export type Database = {
           },
         ]
       }
+      attendance_review: {
+        Row: {
+          action: Database["public"]["Enums"]["review_action"]
+          created_at: string
+          edited_time: string | null
+          log_id: string
+          manager_id: string
+          reason: string | null
+          review_id: string
+          reviewed_at: string
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["review_action"]
+          created_at?: string
+          edited_time?: string | null
+          log_id: string
+          manager_id: string
+          reason?: string | null
+          review_id?: string
+          reviewed_at?: string
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["review_action"]
+          created_at?: string
+          edited_time?: string | null
+          log_id?: string
+          manager_id?: string
+          reason?: string | null
+          review_id?: string
+          reviewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_review_log_id_fkey"
+            columns: ["log_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_logs"
+            referencedColumns: ["log_id"]
+          },
+          {
+            foreignKeyName: "attendance_review_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "employee_master"
+            referencedColumns: ["employee_id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address: string | null
@@ -434,6 +482,7 @@ export type Database = {
         | "sms"
         | "other"
       punch_type: "IN" | "OUT"
+      review_action: "approved" | "edited" | "rejected"
       salary_type: "monthly" | "daily" | "hourly"
     }
     CompositeTypes: {
@@ -583,6 +632,7 @@ export const Constants = {
         "other",
       ],
       punch_type: ["IN", "OUT"],
+      review_action: ["approved", "edited", "rejected"],
       salary_type: ["monthly", "daily", "hourly"],
     },
   },
