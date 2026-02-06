@@ -137,7 +137,12 @@ const AttendanceTab = () => {
   const startCamera = useCallback(async () => {
     // Prevent multiple simultaneous initialization attempts
     if (cameraInitializedRef.current && streamRef.current) {
-      return;
+      // Check if stream is still active
+      const tracks = streamRef.current.getTracks();
+      if (tracks.length > 0 && tracks[0].readyState === "live") {
+        setCameraReady(true);
+        return;
+      }
     }
 
     try {
@@ -154,35 +159,81 @@ const AttendanceTab = () => {
         return;
       }
 
-      // Request camera access
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: 640, height: 480 },
-      });
+      // Request camera access with fallback constraints
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+        });
+      } catch (constraintError) {
+        // Fallback to basic video constraints
+        console.warn("Falling back to basic video constraints:", constraintError);
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+      }
 
       streamRef.current = stream;
       cameraInitializedRef.current = true;
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        
+        // Ensure video plays
+        try {
+          await videoRef.current.play();
+        } catch (playError) {
+          console.warn("Auto-play failed, user interaction may be required:", playError);
+        }
+        
         // Wait for video to be ready
         videoRef.current.onloadedmetadata = () => {
           setCameraReady(true);
           setCameraPermission("granted");
         };
+        
+        // Also handle if metadata is already loaded
+        if (videoRef.current.readyState >= 1) {
+          setCameraReady(true);
+          setCameraPermission("granted");
+        }
       }
     } catch (error: any) {
       console.error("Camera error:", error);
       cameraInitializedRef.current = false;
+      streamRef.current = null;
       
       if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
         setCameraPermission("denied");
         setCameraError("Camera access denied. Please grant permission in your browser settings and refresh.");
-      } else if (error.name === "NotFoundError") {
+      } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
         setCameraError("No camera found on this device.");
-      } else if (error.name === "NotReadableError") {
+      } else if (error.name === "NotReadableError" || error.name === "TrackStartError") {
         setCameraError("Camera is in use by another application. Please close other apps using the camera.");
+      } else if (error.name === "OverconstrainedError") {
+        setCameraError("Camera doesn't support the requested settings. Retrying with basic settings...");
+        // Try again with basic constraints
+        try {
+          const basicStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          streamRef.current = basicStream;
+          cameraInitializedRef.current = true;
+          if (videoRef.current) {
+            videoRef.current.srcObject = basicStream;
+            await videoRef.current.play();
+            setCameraReady(true);
+            setCameraPermission("granted");
+            setCameraError(null);
+          }
+        } catch (fallbackError) {
+          console.error("Basic camera also failed:", fallbackError);
+          setCameraError("Failed to access camera. Please check permissions.");
+        }
+      } else if (error.name === "AbortError") {
+        setCameraError("Camera access was interrupted. Please try again.");
+      } else if (error.name === "SecurityError") {
+        setCameraError("Camera access blocked due to security policy. Please use HTTPS.");
       } else {
-        setCameraError(error.message || "Failed to access camera");
+        setCameraError(error.message || "Failed to access camera. Please check your device settings.");
       }
     } finally {
       setIsRetryingCamera(false);
@@ -198,31 +249,46 @@ const AttendanceTab = () => {
     }
     cameraInitializedRef.current = false;
     setCameraReady(false);
+    setCameraError(null);
     await startCamera();
   }, [startCamera]);
 
-  // Initialize camera on mount
+  // Initialize camera on mount - only once
   useEffect(() => {
-    startCamera();
-
-    // Cleanup on unmount - but DON'T stop the stream to allow quick re-access
-    return () => {
-      // Only cleanup if the component is being fully unmounted (not just re-rendered)
-      // We keep the stream alive for better UX
+    const initCamera = async () => {
+      // Small delay to ensure component is fully mounted
+      await new Promise(resolve => setTimeout(resolve, 100));
+      await startCamera();
     };
-  }, [startCamera]);
+    
+    initCamera();
 
-  // Handle visibility change - restart camera if page becomes visible
+    // Cleanup on unmount
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+      cameraInitializedRef.current = false;
+    };
+  }, []); // Empty deps - only run once on mount
+
+  // Handle visibility change - restart camera if page becomes visible and stream is dead
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible" && !cameraReady && !streamRef.current) {
-        startCamera();
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "visible") {
+        // Check if stream is still alive
+        if (!streamRef.current || streamRef.current.getTracks().some(t => t.readyState === "ended")) {
+          cameraInitializedRef.current = false;
+          setCameraReady(false);
+          await startCamera();
+        }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [startCamera, cameraReady]);
+  }, [startCamera]);
 
   // Capture selfie and upload
   const captureSelfie = async (): Promise<string | null> => {
