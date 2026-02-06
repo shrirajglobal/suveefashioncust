@@ -10,8 +10,8 @@ interface PushSubscriptionState {
   permission: NotificationPermission | "default";
 }
 
-// VAPID public key - this will be set from environment or edge function
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
+// VAPID public key - fetched from edge function or environment
+let cachedVapidKey: string | null = null;
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -71,9 +71,31 @@ export const usePushNotifications = () => {
     }
   }, []);
 
+  // Fetch VAPID public key
+  const getVapidKey = useCallback(async (): Promise<string | null> => {
+    if (cachedVapidKey) return cachedVapidKey;
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("get-vapid-public-key");
+      if (!error && data?.publicKey) {
+        cachedVapidKey = data.publicKey;
+        return data.publicKey;
+      }
+    } catch {
+      console.warn("Failed to fetch VAPID key");
+    }
+    return null;
+  }, []);
+
   // Subscribe to push notifications
   const subscribe = useCallback(async (): Promise<boolean> => {
-    if (!user || !VAPID_PUBLIC_KEY) {
+    if (!user) {
+      toast.error("Please log in first");
+      return false;
+    }
+
+    const vapidKey = await getVapidKey();
+    if (!vapidKey) {
       toast.error("Push notifications are not configured");
       return false;
     }
@@ -95,7 +117,7 @@ export const usePushNotifications = () => {
       const registration = await navigator.serviceWorker.ready;
 
       // Subscribe to push
-      const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+      const applicationServerKey = urlBase64ToUint8Array(vapidKey);
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: applicationServerKey as BufferSource,
@@ -131,7 +153,7 @@ export const usePushNotifications = () => {
       setState(prev => ({ ...prev, isLoading: false }));
       return false;
     }
-  }, [user]);
+  }, [user, getVapidKey]);
 
   // Unsubscribe from push notifications
   const unsubscribe = useCallback(async (): Promise<boolean> => {
@@ -175,6 +197,5 @@ export const usePushNotifications = () => {
     ...state,
     subscribe,
     unsubscribe,
-    vapidKeyConfigured: !!VAPID_PUBLIC_KEY,
   };
 };
