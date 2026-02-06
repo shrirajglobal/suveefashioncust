@@ -4,14 +4,14 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, Clock, XCircle, Users, AlertTriangle, BarChart3, Flag } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, Users, AlertTriangle, BarChart3, Flag, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import AddEmployeeForm from "./AddEmployeeForm";
 
 const ManagerReviewTab = lazy(() => import("./ManagerReviewTab"));
 const TeamAttendanceDashboard = lazy(() => import("./TeamAttendanceDashboard"));
 const FlaggedEntriesReview = lazy(() => import("./FlaggedEntriesReview"));
-
 interface TeamMember {
   employee_id: string;
   full_name: string;
@@ -26,6 +26,11 @@ const TeamTab = () => {
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeView, setActiveView] = useState<"status" | "dashboard" | "flags" | "review">("status");
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleEmployeeAdded = () => {
+    setRefreshKey((prev) => prev + 1);
+  };
 
   useEffect(() => {
     const fetchTeam = async () => {
@@ -77,13 +82,19 @@ const TeamTab = () => {
     };
 
     fetchTeam();
-  }, []);
+  }, [refreshKey]);
 
   const presentCount = team.filter((m) => m.status === "present").length;
   const absentCount = team.filter((m) => m.status === "absent" || m.status === "not_punched").length;
 
   return (
     <div className="space-y-4">
+      {/* Header with Add Employee button */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Team Management</h2>
+        <AddEmployeeForm onSuccess={handleEmployeeAdded} />
+      </div>
+
       <Tabs value={activeView} onValueChange={(v) => setActiveView(v as any)}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="status" className="gap-2">
