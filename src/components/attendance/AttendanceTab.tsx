@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Camera, MapPin, Clock, CheckCircle2, Loader2, AlertCircle, Calendar } from "lucide-react";
+import { Camera, MapPin, Clock, CheckCircle2, Loader2, AlertCircle, Calendar, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -24,11 +24,14 @@ interface LocationState {
   error: string | null;
 }
 
+type CameraPermissionState = "prompt" | "granted" | "denied" | "unknown";
+
 const AttendanceTab = () => {
   const { user } = useAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const cameraInitializedRef = useRef(false);
 
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [todayPunches, setTodayPunches] = useState<PunchRecord[]>([]);
@@ -36,6 +39,8 @@ const AttendanceTab = () => {
   const [isPunching, setIsPunching] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraPermission, setCameraPermission] = useState<CameraPermissionState>("unknown");
+  const [isRetryingCamera, setIsRetryingCamera] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [location, setLocation] = useState<LocationState>({
     status: "idle",
@@ -113,31 +118,111 @@ const AttendanceTab = () => {
     );
   }, []);
 
-  // Initialize camera
-  useEffect(() => {
-    const startCamera = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: 640, height: 480 },
-        });
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          setCameraReady(true);
-        }
-      } catch (error: any) {
-        setCameraError(error.message || "Camera access denied");
+  // Check camera permission status
+  const checkCameraPermission = useCallback(async (): Promise<CameraPermissionState> => {
+    try {
+      // Check if Permissions API is available
+      if (navigator.permissions && navigator.permissions.query) {
+        const result = await navigator.permissions.query({ name: "camera" as PermissionName });
+        return result.state as CameraPermissionState;
       }
-    };
+      return "unknown";
+    } catch {
+      // Permissions API not supported (e.g., iOS Safari)
+      return "unknown";
+    }
+  }, []);
 
+  // Initialize camera with permission check
+  const startCamera = useCallback(async () => {
+    // Prevent multiple simultaneous initialization attempts
+    if (cameraInitializedRef.current && streamRef.current) {
+      return;
+    }
+
+    try {
+      setIsRetryingCamera(true);
+      setCameraError(null);
+
+      // Check permission status first
+      const permStatus = await checkCameraPermission();
+      setCameraPermission(permStatus);
+
+      if (permStatus === "denied") {
+        setCameraError("Camera access was denied. Please enable it in your browser/device settings.");
+        setIsRetryingCamera(false);
+        return;
+      }
+
+      // Request camera access
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: 640, height: 480 },
+      });
+
+      streamRef.current = stream;
+      cameraInitializedRef.current = true;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        // Wait for video to be ready
+        videoRef.current.onloadedmetadata = () => {
+          setCameraReady(true);
+          setCameraPermission("granted");
+        };
+      }
+    } catch (error: any) {
+      console.error("Camera error:", error);
+      cameraInitializedRef.current = false;
+      
+      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+        setCameraPermission("denied");
+        setCameraError("Camera access denied. Please grant permission in your browser settings and refresh.");
+      } else if (error.name === "NotFoundError") {
+        setCameraError("No camera found on this device.");
+      } else if (error.name === "NotReadableError") {
+        setCameraError("Camera is in use by another application. Please close other apps using the camera.");
+      } else {
+        setCameraError(error.message || "Failed to access camera");
+      }
+    } finally {
+      setIsRetryingCamera(false);
+    }
+  }, [checkCameraPermission]);
+
+  // Retry camera access
+  const retryCamera = useCallback(async () => {
+    // Stop any existing stream first
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    cameraInitializedRef.current = false;
+    setCameraReady(false);
+    await startCamera();
+  }, [startCamera]);
+
+  // Initialize camera on mount
+  useEffect(() => {
     startCamera();
 
+    // Cleanup on unmount - but DON'T stop the stream to allow quick re-access
     return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+      // Only cleanup if the component is being fully unmounted (not just re-rendered)
+      // We keep the stream alive for better UX
+    };
+  }, [startCamera]);
+
+  // Handle visibility change - restart camera if page becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && !cameraReady && !streamRef.current) {
+        startCamera();
       }
     };
-  }, []);
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [startCamera, cameraReady]);
 
   // Capture selfie and upload
   const captureSelfie = async (): Promise<string | null> => {
@@ -326,14 +411,34 @@ const AttendanceTab = () => {
               style={{ transform: "scaleX(-1)" }}
             />
             {!cameraReady && (
-              <div className="absolute inset-0 flex items-center justify-center bg-muted">
-                {cameraError ? (
-                  <div className="text-center p-4">
-                    <AlertCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
-                    <p className="text-destructive text-sm">{cameraError}</p>
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted p-4">
+                {isRetryingCamera ? (
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                ) : cameraError ? (
+                  <div className="text-center space-y-3">
+                    <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
+                    <p className="text-destructive text-sm max-w-xs">{cameraError}</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={retryCamera}
+                      className="gap-2"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Retry Camera
+                    </Button>
+                    {cameraPermission === "denied" && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        On iOS: Settings → Safari → Camera<br />
+                        On Android: Settings → Apps → Browser → Permissions
+                      </p>
+                    )}
                   </div>
                 ) : (
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <div className="text-center space-y-2">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
+                    <p className="text-sm text-muted-foreground">Starting camera...</p>
+                  </div>
                 )}
               </div>
             )}
@@ -363,9 +468,9 @@ const AttendanceTab = () => {
         )}
       </Button>
 
-      {!canPunch && (
+      {!canPunch && !cameraError && (
         <p className="text-center text-sm text-destructive">
-          {!cameraReady && "Camera access required. "}
+          {!cameraReady && !isRetryingCamera && "Camera access required. "}
           {location.status !== "ready" && "GPS location required."}
         </p>
       )}
