@@ -298,8 +298,8 @@ const AddEmployeeForm = ({ onSuccess }: AddEmployeeFormProps) => {
                     <FormItem>
                       <FormLabel>Reporting Manager</FormLabel>
                       <Select
-                        onValueChange={field.onChange}
-                        value={field.value || ""}
+                        onValueChange={(value) => field.onChange(value === "__none__" ? null : value)}
+                        value={field.value || "__none__"}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -307,7 +307,7 @@ const AddEmployeeForm = ({ onSuccess }: AddEmployeeFormProps) => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">No Manager</SelectItem>
+                          <SelectItem value="__none__">No Manager</SelectItem>
                           {managers.map((m) => (
                             <SelectItem key={m.employee_id} value={m.employee_id}>
                               {m.full_name}
