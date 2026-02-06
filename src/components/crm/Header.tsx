@@ -1,13 +1,15 @@
 import { memo, useCallback } from "react";
-import { Users, LogOut, Settings } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Users, LogOut, Settings, Clock } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export const Header = memo(function Header() {
   const { user, userRole, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleHomeClick = useCallback(() => {
     navigate("/");
@@ -15,6 +17,10 @@ export const Header = memo(function Header() {
 
   const handleSettingsClick = useCallback(() => {
     navigate("/settings");
+  }, [navigate]);
+
+  const handleHRClick = useCallback(() => {
+    navigate("/hr");
   }, [navigate]);
 
   const getRoleBadge = () => {
@@ -30,6 +36,9 @@ export const Header = memo(function Header() {
       </Badge>
     );
   };
+
+  const isHRActive = location.pathname === "/hr";
+  const isCRMActive = location.pathname === "/";
 
   return (
     <header className="border-b bg-card shadow-sm">
@@ -56,8 +65,40 @@ export const Header = memo(function Header() {
             </div>
           </div>
           {user && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground hidden sm:inline">
+            <div className="flex items-center gap-2">
+              {/* Module Navigation */}
+              <div className="hidden sm:flex items-center border rounded-lg p-1 mr-2">
+                <Button
+                  variant={isCRMActive ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={handleHomeClick}
+                  className={cn("gap-1", isCRMActive && "bg-muted")}
+                >
+                  <Users className="h-4 w-4" />
+                  CRM
+                </Button>
+                <Button
+                  variant={isHRActive ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={handleHRClick}
+                  className={cn("gap-1", isHRActive && "bg-muted")}
+                >
+                  <Clock className="h-4 w-4" />
+                  HR
+                </Button>
+              </div>
+              
+              {/* Mobile: Icon-only HR button */}
+              <Button 
+                variant={isHRActive ? "secondary" : "ghost"} 
+                size="sm" 
+                onClick={handleHRClick}
+                className="sm:hidden"
+              >
+                <Clock className="h-4 w-4" />
+              </Button>
+              
+              <span className="text-sm text-muted-foreground hidden md:inline">
                 {user.email}
               </span>
               <Button variant="ghost" size="sm" onClick={handleSettingsClick}>
@@ -65,8 +106,8 @@ export const Header = memo(function Header() {
                 <span className="hidden sm:inline ml-1">Settings</span>
               </Button>
               <Button variant="ghost" size="sm" onClick={signOut}>
-                <LogOut className="h-4 w-4 mr-1" />
-                Logout
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline ml-1">Logout</span>
               </Button>
             </div>
           )}

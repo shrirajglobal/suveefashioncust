@@ -18,6 +18,7 @@ const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Install = lazy(() => import("./pages/Install"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const AttendancePayroll = lazy(() => import("./pages/AttendancePayroll"));
 
 // Optimized QueryClient with better caching
 const queryClient = new QueryClient({
@@ -103,6 +104,14 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <Settings />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/hr"
+                  element={
+                    <ProtectedRoute>
+                      <AttendancePayroll />
                     </ProtectedRoute>
                   }
                 />
