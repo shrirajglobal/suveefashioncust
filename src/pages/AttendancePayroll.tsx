@@ -8,9 +8,12 @@ import {
   Users, 
   Wallet, 
   CreditCard, 
-  FileText 
+  FileText,
+  Settings
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HRSettingsDialog } from "@/components/attendance/HRSettingsDialog";
+import { Button } from "@/components/ui/button";
 
 // Lazy load tab content for performance
 const AttendanceDashboard = lazy(() => import("@/components/attendance/AttendanceDashboard"));
@@ -94,8 +97,18 @@ const AttendancePayroll = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-        <div className="container mx-auto px-4 py-3">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-xl font-bold">Attendance & Payroll</h1>
+          {isAdminOrAccounts && (
+            <HRSettingsDialog
+              trigger={
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Settings className="h-4 w-4" />
+                  <span className="hidden sm:inline">HR Settings</span>
+                </Button>
+              }
+            />
+          )}
         </div>
       </header>
 
