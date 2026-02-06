@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Camera, MapPin, Clock, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { Camera, MapPin, Clock, CheckCircle2, Loader2, AlertCircle, Calendar } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, differenceInMinutes } from "date-fns";
 
 interface PunchRecord {
   log_id: string;
@@ -32,11 +32,11 @@ const AttendanceTab = () => {
 
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [todayPunches, setTodayPunches] = useState<PunchRecord[]>([]);
-  const [lastPunch, setLastPunch] = useState<PunchRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isPunching, setIsPunching] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
   const [location, setLocation] = useState<LocationState>({
     status: "idle",
     latitude: null,
@@ -44,11 +44,16 @@ const AttendanceTab = () => {
     error: null,
   });
 
+  // Update current time every second
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Get employee ID for current user
   useEffect(() => {
     const fetchEmployeeId = async () => {
       if (!user) return;
-      
       const { data, error } = await supabase.rpc("get_employee_id", { _user_id: user.id });
       if (!error && data) {
         setEmployeeId(data);
@@ -60,7 +65,6 @@ const AttendanceTab = () => {
   // Fetch today's punches
   const fetchTodayPunches = useCallback(async () => {
     if (!employeeId) return;
-    
     const today = format(new Date(), "yyyy-MM-dd");
     const { data, error } = await supabase
       .from("attendance_logs")
@@ -71,7 +75,6 @@ const AttendanceTab = () => {
 
     if (!error && data) {
       setTodayPunches(data);
-      setLastPunch(data.length > 0 ? data[data.length - 1] : null);
     }
     setIsLoading(false);
   }, [employeeId]);
@@ -175,8 +178,18 @@ const AttendanceTab = () => {
 
   // Handle punch in/out
   const handlePunch = async (type: "IN" | "OUT") => {
-    if (!employeeId || !cameraReady || location.status !== "ready") {
-      toast.error("Camera and GPS must be ready");
+    if (!employeeId) {
+      toast.error("Employee record not found");
+      return;
+    }
+    
+    if (!cameraReady) {
+      toast.error("Camera is required for attendance");
+      return;
+    }
+    
+    if (location.status !== "ready") {
+      toast.error("GPS location is required for attendance");
       return;
     }
 
@@ -184,7 +197,7 @@ const AttendanceTab = () => {
     try {
       const selfieUrl = await captureSelfie();
       if (!selfieUrl) {
-        toast.error("Failed to capture selfie");
+        toast.error("Failed to capture selfie. Please try again.");
         setIsPunching(false);
         return;
       }
@@ -199,7 +212,7 @@ const AttendanceTab = () => {
 
       if (error) throw error;
 
-      toast.success(`Punch ${type} recorded!`);
+      toast.success(`Punch ${type} recorded successfully!`);
       await fetchTodayPunches();
     } catch (error: any) {
       toast.error(error.message || "Failed to record punch");
@@ -208,7 +221,41 @@ const AttendanceTab = () => {
     }
   };
 
+  // Calculate today's summary
+  const getTodaySummary = () => {
+    const punchIn = todayPunches.find(p => p.punch_type === "IN");
+    const punchOut = [...todayPunches].reverse().find(p => p.punch_type === "OUT");
+    
+    let totalMinutes = 0;
+    
+    // Calculate total working time from pairs
+    for (let i = 0; i < todayPunches.length; i++) {
+      const current = todayPunches[i];
+      if (current.punch_type === "IN") {
+        const nextOut = todayPunches.slice(i + 1).find(p => p.punch_type === "OUT");
+        if (nextOut) {
+          totalMinutes += differenceInMinutes(
+            new Date(nextOut.punch_time),
+            new Date(current.punch_time)
+          );
+        }
+      }
+    }
+    
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    
+    return {
+      punchIn: punchIn ? format(new Date(punchIn.punch_time), "hh:mm a") : null,
+      punchOut: punchOut ? format(new Date(punchOut.punch_time), "hh:mm a") : null,
+      totalHours: totalMinutes > 0 ? `${hours}h ${minutes}m` : null,
+    };
+  };
+
+  const summary = getTodaySummary();
+  const lastPunch = todayPunches.length > 0 ? todayPunches[todayPunches.length - 1] : null;
   const nextPunchType: "IN" | "OUT" = lastPunch?.punch_type === "IN" ? "OUT" : "IN";
+  const canPunch = cameraReady && location.status === "ready";
 
   if (isLoading) {
     return (
@@ -224,7 +271,7 @@ const AttendanceTab = () => {
         <CardContent className="pt-6">
           <div className="flex items-center gap-2 text-destructive">
             <AlertCircle className="h-5 w-5" />
-            <p>Your account is not linked to an employee record. Contact admin.</p>
+            <p>Your account is not linked to an employee record. Please contact admin.</p>
           </div>
         </CardContent>
       </Card>
@@ -232,36 +279,61 @@ const AttendanceTab = () => {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-md mx-auto">
+      {/* Current Date & Time */}
+      <Card className="bg-primary text-primary-foreground">
+        <CardContent className="py-4 text-center">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <Calendar className="h-4 w-4" />
+            <span className="text-sm font-medium">
+              {format(currentTime, "EEEE, dd MMMM yyyy")}
+            </span>
+          </div>
+          <div className="text-3xl font-bold tracking-tight">
+            {format(currentTime, "hh:mm:ss a")}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Status Indicators */}
-      <div className="flex flex-wrap gap-2">
-        <Badge variant={location.status === "ready" ? "default" : "secondary"} className="gap-1">
-          <MapPin className="h-3 w-3" />
+      <div className="flex justify-center gap-3">
+        <Badge 
+          variant={location.status === "ready" ? "default" : "destructive"} 
+          className="gap-1.5 py-1.5 px-3"
+        >
+          <MapPin className="h-3.5 w-3.5" />
           GPS: {location.status === "ready" ? "Active" : location.status === "loading" ? "Loading..." : "Error"}
         </Badge>
-        <Badge variant={cameraReady ? "default" : "secondary"} className="gap-1">
-          <Camera className="h-3 w-3" />
-          Camera: {cameraReady ? "Ready" : cameraError || "Loading..."}
+        <Badge 
+          variant={cameraReady ? "default" : "destructive"} 
+          className="gap-1.5 py-1.5 px-3"
+        >
+          <Camera className="h-3.5 w-3.5" />
+          Camera: {cameraReady ? "Ready" : cameraError ? "Error" : "Loading..."}
         </Badge>
       </div>
 
       {/* Camera Preview */}
-      <Card>
-        <CardContent className="p-0 overflow-hidden rounded-lg">
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
           <div className="relative aspect-[4/3] bg-muted">
             <video
               ref={videoRef}
               autoPlay
               playsInline
               muted
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover mirror"
+              style={{ transform: "scaleX(-1)" }}
             />
             {!cameraReady && (
               <div className="absolute inset-0 flex items-center justify-center bg-muted">
                 {cameraError ? (
-                  <p className="text-destructive text-sm">{cameraError}</p>
+                  <div className="text-center p-4">
+                    <AlertCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
+                    <p className="text-destructive text-sm">{cameraError}</p>
+                  </div>
                 ) : (
-                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 )}
               </div>
             )}
@@ -273,79 +345,94 @@ const AttendanceTab = () => {
       {/* Punch Button */}
       <Button
         size="lg"
-        className="w-full h-16 text-lg font-semibold gap-2"
+        variant={nextPunchType === "IN" ? "default" : "destructive"}
+        className="w-full h-20 text-xl font-bold gap-3 rounded-xl shadow-lg"
         onClick={() => handlePunch(nextPunchType)}
-        disabled={isPunching || !cameraReady || location.status !== "ready"}
+        disabled={isPunching || !canPunch}
       >
         {isPunching ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
+          <>
+            <Loader2 className="h-6 w-6 animate-spin" />
+            Processing...
+          </>
         ) : (
-          <Camera className="h-5 w-5" />
+          <>
+            <Camera className="h-6 w-6" />
+            Punch {nextPunchType}
+          </>
         )}
-        Punch {nextPunchType}
       </Button>
 
-      {/* Last Punch Info */}
-      {lastPunch && (
-        <Card className="bg-muted/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              Last Punch: {lastPunch.punch_type}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-2 text-sm">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              {format(new Date(lastPunch.punch_time), "hh:mm a")}
-            </div>
-            {lastPunch.selfie_image_url && (
-              <img
-                src={lastPunch.selfie_image_url}
-                alt="Selfie"
-                className="w-20 h-20 rounded-lg object-cover"
-              />
-            )}
-            {lastPunch.gps_latitude && lastPunch.gps_longitude && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <MapPin className="h-3 w-3" />
-                Location recorded
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {!canPunch && (
+        <p className="text-center text-sm text-destructive">
+          {!cameraReady && "Camera access required. "}
+          {location.status !== "ready" && "GPS location required."}
+        </p>
       )}
 
-      {/* Today's Punch History */}
-      {todayPunches.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Today's Punches</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {todayPunches.map((punch) => (
-                <div
-                  key={punch.log_id}
-                  className="flex items-center justify-between py-2 border-b last:border-0"
-                >
-                  <div className="flex items-center gap-2">
-                    <Badge variant={punch.punch_type === "IN" ? "default" : "secondary"}>
-                      {punch.punch_type}
-                    </Badge>
-                    <span className="text-sm">
-                      {format(new Date(punch.punch_time), "hh:mm a")}
-                    </span>
-                  </div>
-                  {punch.selfie_image_url && (
-                    <img
-                      src={punch.selfie_image_url}
-                      alt="Punch"
-                      className="w-8 h-8 rounded object-cover"
-                    />
-                  )}
+      {/* Today's Summary */}
+      <Card>
+        <CardContent className="py-4">
+          <h3 className="font-semibold text-sm text-muted-foreground mb-3 flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Today's Summary
+          </h3>
+          
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Punch In</p>
+              <p className="font-semibold text-lg">
+                {summary.punchIn || (
+                  <span className="text-muted-foreground">--:--</span>
+                )}
+              </p>
+            </div>
+            
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Punch Out</p>
+              <p className="font-semibold text-lg">
+                {summary.punchOut || (
+                  <span className="text-muted-foreground">--:--</span>
+                )}
+              </p>
+            </div>
+            
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Hours</p>
+              <p className="font-semibold text-lg text-primary">
+                {summary.totalHours || (
+                  <span className="text-muted-foreground">0h 0m</span>
+                )}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Last Punch Confirmation */}
+      {lastPunch && (
+        <Card className="bg-muted/50 border-dashed">
+          <CardContent className="py-3">
+            <div className="flex items-center gap-3">
+              {lastPunch.selfie_image_url && (
+                <img
+                  src={lastPunch.selfie_image_url}
+                  alt="Last punch"
+                  className="w-12 h-12 rounded-lg object-cover border"
+                />
+              )}
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-primary" />
+                  <span className="font-medium text-sm">
+                    Last Punch: {lastPunch.punch_type}
+                  </span>
                 </div>
-              ))}
+                <p className="text-sm text-muted-foreground">
+                  {format(new Date(lastPunch.punch_time), "hh:mm a")}
+                  {lastPunch.gps_latitude && " • Location recorded"}
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
