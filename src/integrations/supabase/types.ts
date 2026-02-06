@@ -267,6 +267,74 @@ export type Database = {
           },
         ]
       }
+      monthly_payroll: {
+        Row: {
+          absent_days: number
+          created_at: string
+          days_present: number
+          deduction_rate: number
+          employee_id: string
+          gross_salary: number | null
+          leave_days: number
+          month_year: string
+          net_salary: number | null
+          overtime_hours: number
+          overtime_rate: number
+          payment_status: Database["public"]["Enums"]["payment_status"]
+          payroll_id: string
+          per_day_rate: number
+          total_deductions: number | null
+          total_working_days: number
+          updated_at: string
+        }
+        Insert: {
+          absent_days?: number
+          created_at?: string
+          days_present?: number
+          deduction_rate?: number
+          employee_id: string
+          gross_salary?: number | null
+          leave_days?: number
+          month_year: string
+          net_salary?: number | null
+          overtime_hours?: number
+          overtime_rate?: number
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          payroll_id?: string
+          per_day_rate?: number
+          total_deductions?: number | null
+          total_working_days?: number
+          updated_at?: string
+        }
+        Update: {
+          absent_days?: number
+          created_at?: string
+          days_present?: number
+          deduction_rate?: number
+          employee_id?: string
+          gross_salary?: number | null
+          leave_days?: number
+          month_year?: string
+          net_salary?: number | null
+          overtime_hours?: number
+          overtime_rate?: number
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          payroll_id?: string
+          per_day_rate?: number
+          total_deductions?: number | null
+          total_working_days?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_payroll_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_master"
+            referencedColumns: ["employee_id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -522,6 +590,7 @@ export type Database = {
         | "in_person"
         | "sms"
         | "other"
+      payment_status: "pending" | "paid"
       punch_type: "IN" | "OUT"
       review_action: "approved" | "edited" | "rejected"
       salary_type: "monthly" | "daily" | "hourly"
@@ -672,6 +741,7 @@ export const Constants = {
         "sms",
         "other",
       ],
+      payment_status: ["pending", "paid"],
       punch_type: ["IN", "OUT"],
       review_action: ["approved", "edited", "rejected"],
       salary_type: ["monthly", "daily", "hourly"],
