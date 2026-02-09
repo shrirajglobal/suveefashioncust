@@ -98,6 +98,7 @@ export function useSupabaseCRM() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hasLoadedOnceRef = useRef(false);
+  const lastUserIdRef = useRef<string | null>(null);
 
   const fetchData = useCallback(async (isInitialLoad = false) => {
     if (!user) return;
@@ -150,11 +151,25 @@ export function useSupabaseCRM() {
     }
   }, [user]);
 
+  // Reset and refetch when user changes (login/logout or switching accounts)
   useEffect(() => {
-    if (!hasLoadedOnceRef.current) {
-      fetchData(true); // Initial load
+    if (!user) {
+      // User logged out - reset state
+      hasLoadedOnceRef.current = false;
+      lastUserIdRef.current = null;
+      setCustomers([]);
+      setPurchases([]);
+      setSalesTeamMembers([]);
+      return;
     }
-  }, [fetchData]);
+
+    // User changed or first load
+    if (lastUserIdRef.current !== user.id || !hasLoadedOnceRef.current) {
+      lastUserIdRef.current = user.id;
+      hasLoadedOnceRef.current = false; // Force reload for new user
+      fetchData(true);
+    }
+  }, [user, fetchData]);
 
   // Compute customers with purchase data
   const customersWithPurchases = useMemo((): CustomerWithPurchases[] => {
