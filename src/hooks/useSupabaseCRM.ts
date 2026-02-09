@@ -99,9 +99,14 @@ export function useSupabaseCRM() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hasLoadedOnceRef = useRef(false);
   const lastUserIdRef = useRef<string | null>(null);
+  const isFetchingRef = useRef(false);
 
   const fetchData = useCallback(async (isInitialLoad = false) => {
     if (!user) return;
+    
+    // Prevent concurrent fetches
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
 
     if (isInitialLoad) {
       setIsLoading(true);
@@ -143,33 +148,38 @@ export function useSupabaseCRM() {
       logError('fetchData', error);
       toast.error(getSafeErrorMessage(error));
     } finally {
+      isFetchingRef.current = false;
       if (isInitialLoad) {
         setIsLoading(false);
       } else {
         setIsRefreshing(false);
       }
     }
-  }, [user]);
+  }, []); // Remove user dependency - we check inside
 
-  // Reset and refetch when user changes (login/logout or switching accounts)
+  // Handle user changes and initial load
   useEffect(() => {
-    if (!user) {
+    const userId = user?.id ?? null;
+    
+    if (!userId) {
       // User logged out - reset state
-      hasLoadedOnceRef.current = false;
-      lastUserIdRef.current = null;
-      setCustomers([]);
-      setPurchases([]);
-      setSalesTeamMembers([]);
+      if (hasLoadedOnceRef.current || lastUserIdRef.current) {
+        hasLoadedOnceRef.current = false;
+        lastUserIdRef.current = null;
+        setCustomers([]);
+        setPurchases([]);
+        setSalesTeamMembers([]);
+        setIsLoading(false);
+      }
       return;
     }
 
     // User changed or first load
-    if (lastUserIdRef.current !== user.id || !hasLoadedOnceRef.current) {
-      lastUserIdRef.current = user.id;
-      hasLoadedOnceRef.current = false; // Force reload for new user
+    if (lastUserIdRef.current !== userId || !hasLoadedOnceRef.current) {
+      lastUserIdRef.current = userId;
       fetchData(true);
     }
-  }, [user, fetchData]);
+  }, [user?.id, fetchData]);
 
   // Compute customers with purchase data
   const customersWithPurchases = useMemo((): CustomerWithPurchases[] => {
