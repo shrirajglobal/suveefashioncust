@@ -100,9 +100,12 @@ export function useSupabaseCRM() {
   const hasLoadedOnceRef = useRef(false);
   const lastUserIdRef = useRef<string | null>(null);
   const isFetchingRef = useRef(false);
+  const userRef = useRef(user);
+  userRef.current = user;
 
   const fetchData = useCallback(async (isInitialLoad = false) => {
-    if (!user) return;
+    const currentUser = userRef.current;
+    if (!currentUser) return;
     
     // Prevent concurrent fetches
     if (isFetchingRef.current) return;
