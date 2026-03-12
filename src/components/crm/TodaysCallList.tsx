@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Phone, MessageSquarePlus, IndianRupee, Clock, User, Calendar, CheckCircle2 } from "lucide-react";
+import { Phone, MessageSquarePlus, MessageCircle, IndianRupee, Clock, User, Calendar, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -403,6 +403,21 @@ function CustomerCallCard({
         >
           <Phone className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Call</span>
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1 h-8 text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
+          asChild
+        >
+          <a
+            href={`https://wa.me/${customer.phone.replace(/\D/g, '')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">WhatsApp</span>
+          </a>
         </Button>
         <Button
           size="sm"
