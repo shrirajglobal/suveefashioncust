@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Phone, MessageSquarePlus, IndianRupee, Clock, User, Calendar, CheckCircle2 } from "lucide-react";
+import { Phone, MessageSquarePlus, MessageCircle, IndianRupee, Clock, User, Calendar, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
