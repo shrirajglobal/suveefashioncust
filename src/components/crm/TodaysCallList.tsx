@@ -406,6 +406,21 @@ function CustomerCallCard({
         </Button>
         <Button
           size="sm"
+          variant="outline"
+          className="gap-1 h-8 text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
+          asChild
+        >
+          <a
+            href={`https://wa.me/${customer.phone.replace(/\D/g, '')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">WhatsApp</span>
+          </a>
+        </Button>
+        <Button
+          size="sm"
           variant="default"
           className="gap-1 h-8"
           onClick={onLogClick}
