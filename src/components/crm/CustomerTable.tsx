@@ -286,6 +286,15 @@ export const CustomerTable = memo(function CustomerTable({
               </>
             )}
             
+            {isAdminOrAccounts && (
+              <>
+                <div className="h-4 w-px bg-border mx-1" />
+                <Button size="sm" variant="outline" onClick={handleDownloadCSV} className="gap-1">
+                  <Download className="h-4 w-4" />
+                  Download CSV
+                </Button>
+              </>
+            )}
             <Button size="sm" variant="ghost" onClick={clearSelection}>
               Cancel
             </Button>
