@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, memo } from "react";
-import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc, UserCheck, Users, MessageCircle, PhoneOff, AlertTriangle } from "lucide-react";
+import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc, UserCheck, Users, MessageCircle, PhoneOff, AlertTriangle, Download } from "lucide-react";
 import { CustomerWithPurchases } from "@/types/crm";
 import { EditCustomerDialog } from "./EditCustomerDialog";
 import { formatINR, formatDaysAgo, formatDate } from "@/lib/formatters";
