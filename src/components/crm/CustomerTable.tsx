@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, memo } from "react";
-import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc, UserCheck, Users, MessageCircle, PhoneOff, AlertTriangle } from "lucide-react";
+import { Phone, MapPin, Trash2, Search, SortAsc, SortDesc, UserCheck, Users, MessageCircle, PhoneOff, AlertTriangle, Download } from "lucide-react";
 import { CustomerWithPurchases } from "@/types/crm";
 import { EditCustomerDialog } from "./EditCustomerDialog";
 import { formatINR, formatDaysAgo, formatDate } from "@/lib/formatters";
@@ -207,6 +207,24 @@ export const CustomerTable = memo(function CustomerTable({
     setIsAssigning(false);
   }, [onBulkToggleCritical, selectedIds]);
 
+  const handleDownloadCSV = useCallback(() => {
+    const selected = sortedCustomers.filter((c) => selectedIds.has(c.id));
+    if (selected.length === 0) return;
+    const header = "Name,Mobile No,DND Status";
+    const rows = selected.map(
+      (c) => `"${c.name.replace(/"/g, '""')}","${c.mobileNo}","${c.dnd ? "Yes" : "No"}"`
+    );
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "customers_export.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Downloaded ${selected.length} customer(s)`);
+  }, [sortedCustomers, selectedIds]);
+
   return (
     <div className="space-y-4">
       {/* Bulk Action Bar */}
@@ -268,6 +286,15 @@ export const CustomerTable = memo(function CustomerTable({
               </>
             )}
             
+            {isAdminOrAccounts && (
+              <>
+                <div className="h-4 w-px bg-border mx-1" />
+                <Button size="sm" variant="outline" onClick={handleDownloadCSV} className="gap-1">
+                  <Download className="h-4 w-4" />
+                  Download CSV
+                </Button>
+              </>
+            )}
             <Button size="sm" variant="ghost" onClick={clearSelection}>
               Cancel
             </Button>
