@@ -207,6 +207,24 @@ export const CustomerTable = memo(function CustomerTable({
     setIsAssigning(false);
   }, [onBulkToggleCritical, selectedIds]);
 
+  const handleDownloadCSV = useCallback(() => {
+    const selected = sortedCustomers.filter((c) => selectedIds.has(c.id));
+    if (selected.length === 0) return;
+    const header = "Name,Mobile No,DND Status";
+    const rows = selected.map(
+      (c) => `"${c.name.replace(/"/g, '""')}","${c.mobileNo}","${c.dnd ? "Yes" : "No"}"`
+    );
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "customers_export.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Downloaded ${selected.length} customer(s)`);
+  }, [sortedCustomers, selectedIds]);
+
   return (
     <div className="space-y-4">
       {/* Bulk Action Bar */}
