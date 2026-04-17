@@ -410,9 +410,8 @@ export function ImportCSVForm({
       }
 
       const parsed = parseImportDate(dateStr, dateFormat);
-      if (!parsed.ok) {
-        const reason = parsed.ok ? "" : parsed.reason;
-        errorDetails.push({ row: rowNum, mobile: customerMobile, reason: `Invalid date "${dateStr}" — ${reason}` });
+      if (parsed.ok !== true) {
+        errorDetails.push({ row: rowNum, mobile: customerMobile, reason: `Invalid date "${dateStr}" — ${parsed.reason}` });
         return;
       }
       const date = parsed.date;
