@@ -411,7 +411,8 @@ export function ImportCSVForm({
 
       const parsed = parseImportDate(dateStr, dateFormat);
       if (!parsed.ok) {
-        errorDetails.push({ row: rowNum, mobile: customerMobile, reason: `Invalid date "${dateStr}" — ${parsed.reason}` });
+        const reason = parsed.ok ? "" : parsed.reason;
+        errorDetails.push({ row: rowNum, mobile: customerMobile, reason: `Invalid date "${dateStr}" — ${reason}` });
         return;
       }
       const date = parsed.date;
