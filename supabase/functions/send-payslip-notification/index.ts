@@ -63,12 +63,14 @@ serve(async (req) => {
     // Get payroll details
     const { data: payroll } = await supabase
       .from("monthly_payroll")
-      .select("net_salary, payslip_url")
+      .select("net_salary")
       .eq("payroll_id", payroll_id)
       .single();
 
     const netSalary = payroll?.net_salary ? `₹${Number(payroll.net_salary).toLocaleString('en-IN')}` : 'N/A';
-    const payslipUrl = payroll?.payslip_url || '#';
+    // Payslips are private. Direct the user to sign in and download from the app.
+    const appUrl = Deno.env.get("APP_URL") ?? "https://suveefashioncust.lovable.app";
+    const payslipUrl = `${appUrl}/hr`;
 
     // Send email notification
     const emailResponse = await resend.emails.send({
