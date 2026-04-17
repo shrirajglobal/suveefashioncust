@@ -634,8 +634,7 @@ export function ImportCSVForm({
                   </div>
                 </RadioGroup>
               </div>
-
-
+            </TabsContent>
           </Tabs>
 
           {result && (
