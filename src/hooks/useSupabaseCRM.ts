@@ -5,6 +5,7 @@ import { Customer, Purchase, CustomerWithPurchases, SEGMENTS, SegmentPeriod } fr
 import { getDaysBetween } from "@/lib/formatters";
 import { toast } from "sonner";
 import { getSafeErrorMessage, logError } from "@/lib/errorHandler";
+import { toDbDateString } from "@/lib/dateImport";
 
 const PAGE_SIZE = 1000;
 
@@ -330,7 +331,7 @@ export function useSupabaseCRM() {
       .insert({
         customer_id: data.customerId,
         amount: data.amount,
-        transaction_date: new Date(data.date).toISOString().split("T")[0],
+        transaction_date: toDbDateString(new Date(data.date)),
         description: data.description || null,
         created_by: user.id,
       })
@@ -463,7 +464,7 @@ export function useSupabaseCRM() {
             .from("transactions")
             .update({
               description: data.description || null,
-              transaction_date: new Date(data.date).toISOString().split("T")[0],
+              transaction_date: toDbDateString(new Date(data.date)),
             })
             .eq("id", existingId);
 

@@ -12,8 +12,11 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import Papa from "papaparse";
+import { parseImportDate, type DateFormat } from "@/lib/dateImport";
 
 interface ImportCSVFormProps {
   onImportCustomers: (customers: Array<{
@@ -78,6 +81,7 @@ export function ImportCSVForm({
 }: ImportCSVFormProps) {
   const [open, setOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [dateFormat, setDateFormat] = useState<DateFormat>("DD/MM/YYYY");
   const [result, setResult] = useState<{
     success: boolean;
     message: string;
@@ -207,27 +211,24 @@ export function ImportCSVForm({
       const customerMobile = (
         row.customerMobile || row.customer_mobile || row.mobile || row.mobileNo
       )?.toString().trim();
-      
+
       if (!customerMobile || !row.amount || !row.date) return;
-      
+
+      // Always include the row — validity is enforced in processPurchases.
+      // Only check signatures when we can actually parse amount + date.
+      validRows.push(row);
+
       const customerId = customerLookup.get(customerMobile);
-      if (!customerId) {
-        validRows.push(row);
-        return;
-      }
+      if (!customerId) return;
 
       const amount = parseFloat(row.amount.toString());
-      const date = new Date(row.date);
-      if (isNaN(amount) || isNaN(date.getTime())) {
-        validRows.push(row);
-        return;
-      }
+      const parsed = parseImportDate(row.date, dateFormat);
+      if (isNaN(amount) || !parsed.ok) return;
 
-      const signature = `${customerId}-${amount}-${date.toDateString()}`;
+      const signature = `${customerId}-${amount}-${parsed.date.toDateString()}`;
       if (existingSignatures.has(signature)) {
-        duplicates.push(`${customerMobile} - ₹${amount} on ${date.toLocaleDateString()}`);
+        duplicates.push(`${customerMobile} - ₹${amount} on ${parsed.date.toLocaleDateString()}`);
       }
-      validRows.push(row);
     });
 
     if (duplicates.length > 0) {
@@ -408,11 +409,12 @@ export function ImportCSVForm({
         return;
       }
 
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) {
-        errorDetails.push({ row: rowNum, mobile: customerMobile, reason: `Invalid date format: "${dateStr}"` });
+      const parsed = parseImportDate(dateStr, dateFormat);
+      if (parsed.ok !== true) {
+        errorDetails.push({ row: rowNum, mobile: customerMobile, reason: `Invalid date "${dateStr}" — ${parsed.reason}` });
         return;
       }
+      const date = parsed.date;
 
       if (!customerLookup.has(customerMobile)) {
         const existing = notFoundMobiles.get(customerMobile) || [];
@@ -599,6 +601,38 @@ export function ImportCSVForm({
                   <Upload className="h-4 w-4 mr-2" />
                   {importing ? "Importing..." : "Select CSV File"}
                 </Button>
+              </div>
+
+              <div className="space-y-2 rounded-md border p-3 bg-muted/30">
+                <Label className="text-sm font-medium">Date format in your CSV</Label>
+                <p className="text-xs text-muted-foreground">
+                  Choose how dates are written in the <code className="bg-muted px-1 rounded">date</code> column.
+                  Picking the wrong format will cause sales to be skipped or imported on the wrong day.
+                </p>
+                <RadioGroup
+                  value={dateFormat}
+                  onValueChange={(v) => setDateFormat(v as DateFormat)}
+                  className="gap-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="DD/MM/YYYY" id="fmt-ddmm" />
+                    <Label htmlFor="fmt-ddmm" className="font-normal cursor-pointer">
+                      DD/MM/YYYY <span className="text-muted-foreground">— e.g. 13/02/2024 (Indian)</span>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="MM/DD/YYYY" id="fmt-mmdd" />
+                    <Label htmlFor="fmt-mmdd" className="font-normal cursor-pointer">
+                      MM/DD/YYYY <span className="text-muted-foreground">— e.g. 02/13/2024 (US)</span>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="YYYY-MM-DD" id="fmt-iso" />
+                    <Label htmlFor="fmt-iso" className="font-normal cursor-pointer">
+                      YYYY-MM-DD <span className="text-muted-foreground">— e.g. 2024-02-13 (ISO)</span>
+                    </Label>
+                  </div>
+                </RadioGroup>
               </div>
             </TabsContent>
           </Tabs>
