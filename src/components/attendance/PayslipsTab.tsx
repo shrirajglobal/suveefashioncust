@@ -239,11 +239,17 @@ const PayslipsTab = () => {
             {/* Download Button */}
             <div className="mt-6">
               {selectedPayslip.payslip_url ? (
-                <Button className="w-full gap-2" asChild>
-                  <a href={selectedPayslip.payslip_url} target="_blank" rel="noopener noreferrer">
+                <Button
+                  className="w-full gap-2"
+                  onClick={() => handleDownload(selectedPayslip.payroll_id)}
+                  disabled={downloadingId === selectedPayslip.payroll_id}
+                >
+                  {downloadingId === selectedPayslip.payroll_id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
                     <Download className="h-4 w-4" />
-                    Download Payslip (PDF)
-                  </a>
+                  )}
+                  Download Payslip
                 </Button>
               ) : (
                 <Button variant="outline" className="w-full" disabled>
