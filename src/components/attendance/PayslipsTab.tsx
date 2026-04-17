@@ -40,6 +40,23 @@ const PayslipsTab = () => {
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const handleDownload = async (payrollId: string) => {
+    try {
+      setDownloadingId(payrollId);
+      const { data, error } = await supabase.functions.invoke("get-payslip-url", {
+        body: { payroll_id: payrollId },
+      });
+      if (error) throw error;
+      if (!data?.url) throw new Error("No URL returned");
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      toast.error(getSafeErrorMessage(err));
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   // Get employee ID for current user
   useEffect(() => {
