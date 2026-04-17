@@ -10,11 +10,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, FileText, IndianRupee, Calendar, Clock, Briefcase, TrendingDown } from "lucide-react";
+import { Download, FileText, IndianRupee, Calendar, Clock, Briefcase, TrendingDown, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { formatINR } from "@/lib/formatters";
+import { toast } from "sonner";
+import { getSafeErrorMessage } from "@/lib/errorHandler";
 
 interface Payslip {
   payroll_id: string;
