@@ -10,11 +10,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, FileText, IndianRupee, Calendar, Clock, Briefcase, TrendingDown } from "lucide-react";
+import { Download, FileText, IndianRupee, Calendar, Clock, Briefcase, TrendingDown, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { formatINR } from "@/lib/formatters";
+import { toast } from "sonner";
+import { getSafeErrorMessage } from "@/lib/errorHandler";
 
 interface Payslip {
   payroll_id: string;
@@ -38,6 +40,23 @@ const PayslipsTab = () => {
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const handleDownload = async (payrollId: string) => {
+    try {
+      setDownloadingId(payrollId);
+      const { data, error } = await supabase.functions.invoke("get-payslip-url", {
+        body: { payroll_id: payrollId },
+      });
+      if (error) throw error;
+      if (!data?.url) throw new Error("No URL returned");
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      toast.error(getSafeErrorMessage(err));
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   // Get employee ID for current user
   useEffect(() => {
@@ -237,11 +256,17 @@ const PayslipsTab = () => {
             {/* Download Button */}
             <div className="mt-6">
               {selectedPayslip.payslip_url ? (
-                <Button className="w-full gap-2" asChild>
-                  <a href={selectedPayslip.payslip_url} target="_blank" rel="noopener noreferrer">
+                <Button
+                  className="w-full gap-2"
+                  onClick={() => handleDownload(selectedPayslip.payroll_id)}
+                  disabled={downloadingId === selectedPayslip.payroll_id}
+                >
+                  {downloadingId === selectedPayslip.payroll_id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
                     <Download className="h-4 w-4" />
-                    Download Payslip (PDF)
-                  </a>
+                  )}
+                  Download Payslip
                 </Button>
               ) : (
                 <Button variant="outline" className="w-full" disabled>
