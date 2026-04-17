@@ -12,8 +12,11 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import Papa from "papaparse";
+import { parseImportDate, type DateFormat } from "@/lib/dateImport";
 
 interface ImportCSVFormProps {
   onImportCustomers: (customers: Array<{
@@ -78,6 +81,7 @@ export function ImportCSVForm({
 }: ImportCSVFormProps) {
   const [open, setOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [dateFormat, setDateFormat] = useState<DateFormat>("DD/MM/YYYY");
   const [result, setResult] = useState<{
     success: boolean;
     message: string;
