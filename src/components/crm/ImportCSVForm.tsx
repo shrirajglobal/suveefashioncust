@@ -409,11 +409,12 @@ export function ImportCSVForm({
         return;
       }
 
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) {
-        errorDetails.push({ row: rowNum, mobile: customerMobile, reason: `Invalid date format: "${dateStr}"` });
+      const parsed = parseImportDate(dateStr, dateFormat);
+      if (!parsed.ok) {
+        errorDetails.push({ row: rowNum, mobile: customerMobile, reason: `Invalid date "${dateStr}" — ${parsed.reason}` });
         return;
       }
+      const date = parsed.date;
 
       if (!customerLookup.has(customerMobile)) {
         const existing = notFoundMobiles.get(customerMobile) || [];
