@@ -107,8 +107,10 @@ serve(async (req) => {
               </div>
               
               <p style="text-align: center;">
-                <a href="${payslipUrl}" class="button">View Payslip</a>
+                <a href="${payslipUrl}" class="button">Sign in to view payslip</a>
               </p>
+              
+              <p>For your security, payslips are only available after signing in to the app.</p>
               
               <p>If you have any questions about your payslip, please contact the HR/Accounts department.</p>
               
