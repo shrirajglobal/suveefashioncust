@@ -602,7 +602,40 @@ export function ImportCSVForm({
                   {importing ? "Importing..." : "Select CSV File"}
                 </Button>
               </div>
-            </TabsContent>
+
+              <div className="space-y-2 rounded-md border p-3 bg-muted/30">
+                <Label className="text-sm font-medium">Date format in your CSV</Label>
+                <p className="text-xs text-muted-foreground">
+                  Choose how dates are written in the <code className="bg-muted px-1 rounded">date</code> column.
+                  Picking the wrong format will cause sales to be skipped or imported on the wrong day.
+                </p>
+                <RadioGroup
+                  value={dateFormat}
+                  onValueChange={(v) => setDateFormat(v as DateFormat)}
+                  className="gap-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="DD/MM/YYYY" id="fmt-ddmm" />
+                    <Label htmlFor="fmt-ddmm" className="font-normal cursor-pointer">
+                      DD/MM/YYYY <span className="text-muted-foreground">— e.g. 13/02/2024 (Indian)</span>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="MM/DD/YYYY" id="fmt-mmdd" />
+                    <Label htmlFor="fmt-mmdd" className="font-normal cursor-pointer">
+                      MM/DD/YYYY <span className="text-muted-foreground">— e.g. 02/13/2024 (US)</span>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="YYYY-MM-DD" id="fmt-iso" />
+                    <Label htmlFor="fmt-iso" className="font-normal cursor-pointer">
+                      YYYY-MM-DD <span className="text-muted-foreground">— e.g. 2024-02-13 (ISO)</span>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+
           </Tabs>
 
           {result && (
