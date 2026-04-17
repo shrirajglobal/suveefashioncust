@@ -211,27 +211,24 @@ export function ImportCSVForm({
       const customerMobile = (
         row.customerMobile || row.customer_mobile || row.mobile || row.mobileNo
       )?.toString().trim();
-      
+
       if (!customerMobile || !row.amount || !row.date) return;
-      
+
+      // Always include the row — validity is enforced in processPurchases.
+      // Only check signatures when we can actually parse amount + date.
+      validRows.push(row);
+
       const customerId = customerLookup.get(customerMobile);
-      if (!customerId) {
-        validRows.push(row);
-        return;
-      }
+      if (!customerId) return;
 
       const amount = parseFloat(row.amount.toString());
-      const date = new Date(row.date);
-      if (isNaN(amount) || isNaN(date.getTime())) {
-        validRows.push(row);
-        return;
-      }
+      const parsed = parseImportDate(row.date, dateFormat);
+      if (isNaN(amount) || !parsed.ok) return;
 
-      const signature = `${customerId}-${amount}-${date.toDateString()}`;
+      const signature = `${customerId}-${amount}-${parsed.date.toDateString()}`;
       if (existingSignatures.has(signature)) {
-        duplicates.push(`${customerMobile} - ₹${amount} on ${date.toLocaleDateString()}`);
+        duplicates.push(`${customerMobile} - ₹${amount} on ${parsed.date.toLocaleDateString()}`);
       }
-      validRows.push(row);
     });
 
     if (duplicates.length > 0) {
