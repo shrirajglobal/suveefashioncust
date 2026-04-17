@@ -137,12 +137,47 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // === Authentication & authorization ===
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user: requestingUser }, error: userError } =
+      await userClient.auth.getUser();
+    if (userError || !requestingUser) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { data: isAdmin } = await userClient.rpc("is_admin_or_accounts", {
+      _user_id: requestingUser.id,
+    });
+    if (!isAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden: admin/accounts role required" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // === Service-role client for the actual work ===
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { payroll_id } = await req.json();
 
-    if (!payroll_id) {
+    if (!payroll_id || typeof payroll_id !== "string") {
       return new Response(
         JSON.stringify({ error: "payroll_id is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -174,11 +209,13 @@ serve(async (req) => {
     // Generate HTML payslip
     const htmlContent = generatePayslipHTML(payrollData as PayrollData);
     
-    // Create filename
-    const fileName = `payslip_${payrollData.employee_master.full_name.replace(/\s+/g, '_')}_${payrollData.month_year.replace(/\s+/g, '_')}.html`;
+    // Create filename — path layout: {employee_id}/{file}
+    const safeName = payrollData.employee_master.full_name.replace(/\s+/g, '_');
+    const safeMonth = payrollData.month_year.replace(/\s+/g, '_');
+    const fileName = `payslip_${safeName}_${safeMonth}.html`;
     const filePath = `${payrollData.employee_id}/${fileName}`;
 
-    // Upload to storage
+    // Upload to private storage bucket
     const { error: uploadError } = await supabase.storage
       .from("payslips")
       .upload(filePath, htmlContent, {
@@ -194,27 +231,35 @@ serve(async (req) => {
       );
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from("payslips")
-      .getPublicUrl(filePath);
-
-    const payslipUrl = urlData.publicUrl;
-
-    // Update payroll record with payslip URL
+    // Store ONLY the file path (not a public URL). The client requests
+    // a short-lived signed URL on demand via get-payslip-url.
     const { error: updateError } = await supabase
       .from("monthly_payroll")
-      .update({ payslip_url: payslipUrl })
+      .update({ payslip_url: filePath })
       .eq("payroll_id", payroll_id);
 
     if (updateError) {
       console.error("Update error:", updateError);
     }
 
+    // Return a signed URL valid for 1 hour for the immediate download
+    const { data: signed, error: signError } = await supabase.storage
+      .from("payslips")
+      .createSignedUrl(filePath, 60 * 60);
+
+    if (signError || !signed) {
+      console.error("Sign error:", signError);
+      return new Response(
+        JSON.stringify({ error: "Failed to create signed URL" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
-        payslip_url: payslipUrl,
+        payslip_url: signed.signedUrl,
+        file_path: filePath,
         message: "Payslip generated successfully" 
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -223,7 +268,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "Failed to generate payslip" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
