@@ -8,11 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Lock, Users, ArrowRightLeft, UserCog, BarChart3, MessageCircle } from "lucide-react";
+import { ArrowLeft, Lock, Users, ArrowRightLeft, UserCog, BarChart3, MessageCircle, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { UsageAnalytics } from "@/components/crm/UsageAnalytics";
 import { WhatsAppTemplateEditor } from "@/components/crm/WhatsAppTemplateEditor";
+import { CustomerMasterExport } from "@/components/crm/CustomerMasterExport";
 import { getSafeErrorMessage, logError } from "@/lib/errorHandler";
 
 interface SalesUser {
@@ -21,7 +22,7 @@ interface SalesUser {
   role: string;
 }
 
-type SettingsSection = "password" | "reassign" | "users" | "usage" | "whatsapp";
+type SettingsSection = "password" | "reassign" | "users" | "usage" | "whatsapp" | "export";
 
 export default function Settings() {
   const [activeSection, setActiveSection] = useState<SettingsSection>("password");
@@ -193,6 +194,7 @@ export default function Settings() {
   const menuItems = [
     { id: "password" as SettingsSection, label: "Reset Password", icon: Lock, show: true, isLink: false },
     { id: "reassign" as SettingsSection, label: "Reassign Customers", icon: ArrowRightLeft, show: userRole === "super_admin", isLink: false },
+    { id: "export" as SettingsSection, label: "Export Customers", icon: FileSpreadsheet, show: userRole === "super_admin", isLink: false },
     { id: "whatsapp" as SettingsSection, label: "WhatsApp Templates", icon: MessageCircle, show: userRole === "super_admin", isLink: false },
     { id: "usage" as SettingsSection, label: "Usage Analytics", icon: BarChart3, show: userRole === "super_admin", isLink: false },
     { id: "users" as SettingsSection, label: "Manage Users", icon: UserCog, show: userRole === "super_admin", isLink: true, href: "/users" },
@@ -396,6 +398,8 @@ export default function Settings() {
                 <UsageAnalytics />
               </div>
             )}
+
+            {activeSection === "export" && userRole === "super_admin" && <CustomerMasterExport />}
 
             {activeSection === "whatsapp" && userRole === "super_admin" && (
               <div className="max-w-2xl">
